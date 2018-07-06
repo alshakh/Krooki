@@ -1,0 +1,18 @@
+{
+  "name": "krooki",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc ; ./node_modules/browserify/bin/cmd.js out/main.js > out/bundle.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@tweenjs/tween.js": "^17.2.0",
+    "@types/three": "^0.92.11",
+    "@types/tween.js": "^16.9.0",
+    "browserify": "^16.2.2",
+    "three": "^0.94.0"
+  }
+}
