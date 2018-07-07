@@ -4,9 +4,6 @@ import * as THREE from 'three';
 import { MapControls } from './MapControls'
 import * as TWEEN from '@tweenjs/tween.js'
 
-
-
-
 //threeControls.
 
 
@@ -109,11 +106,17 @@ const initKrooki = function (desc: krookiDescriptor) {
   var sceneInfo = prepareScene(document.body);
   var elements = desc.elementDescriptors.map(initKrookiElement);
   elements.forEach(function (o) { sceneInfo.scene.add(o.object_3) });
-
+  //
+  var mapControls = new MapControls(sceneInfo.camera, sceneInfo.renderer.domElement);
   // ground 
   var ground = createGround(desc.dimension);
   if (desc.showGround) {
     sceneInfo.scene.add(ground)
+  }
+  // render function
+  var renderfn = function () {
+    mapControls.update() ;
+    sceneInfo.render() ;
   }
   //
   return {
@@ -121,9 +124,9 @@ const initKrooki = function (desc: krookiDescriptor) {
     scene_3: sceneInfo.scene,
     renderer_3: sceneInfo.renderer,
     camera_3: sceneInfo.camera,
-    render: sceneInfo.render,
+    render: renderfn,
     elements: elements,
-    
+    mapControls : mapControls,
   }
 }
 
@@ -153,19 +156,20 @@ for ( var i = 0 ; i < 1000 ; i++ ) {
 
 var krooki = initKrooki(kDescEx);
 
-var controls = new MapControls(krooki.camera_3, krooki.renderer_3.domElement);
-
+krooki.render()
 
 //////////
 var raycaster = new THREE.Raycaster();
-
 var raycaste = function ( loc : THREE.Vector2 ) {
   raycaster.setFromCamera(loc, krooki.camera_3);
   var intersects = raycaster.intersectObjects(krooki.elements.map(function(el) { return el.object_3}), true); //array
   if (intersects.length > 0) {
     var selectedObject = intersects[0];
     (<THREE.MeshPhongMaterial>(<THREE.Mesh>selectedObject.object).material).color.setHex(Math.random() * 0xffffff);
-
+		var particle = new THREE.Sprite(new THREE.SpriteMaterial({color : 0xff0000}) );
+					particle.position.copy( intersects[ 0 ].point );
+					particle.scale.x = particle.scale.y = 1;
+					krooki.scene_3.add( particle );
     //selectedObject.object.position.x += 0.2;
   }
 }
@@ -188,8 +192,8 @@ var tapDelta : Date;
 krooki.renderer_3.domElement.addEventListener("touchstart", function (event) {
   tapDelta = new Date();
 }, false);
+
 krooki.renderer_3.domElement.addEventListener("touchend", function (event) {
-  alert ( "touched " +((new Date()).getTime() - tapDelta.getTime()) );
   if (tapDelta && ((new Date()).getTime() - tapDelta.getTime()) < 200 ) {
     var touch = new THREE.Vector2();
     touch.x = ( event.touches[0].clientX / krooki.renderer_3.domElement.clientWidth) * 2 - 1;
@@ -207,7 +211,6 @@ krooki.renderer_3.domElement.addEventListener("touchend", function (event) {
 
 var render = function () {
   requestAnimationFrame(render);
-  controls.update()
   krooki.render()
 };
 render()
