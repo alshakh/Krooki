@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { MapControls } from './MapControls'
 import * as TWEEN from '@tweenjs/tween.js'
-
+import { Object3D } from 'three';
 //threeControls.
 
 
@@ -46,17 +46,21 @@ const prepareScene = function (container: HTMLElement): { renderer: THREE.Render
 
 
   var light = new THREE.DirectionalLight(0xffffff);
-  light.position.set(3, 10, 7);
+  light.position.set(3, 2, 10).multiplyScalar(4);
   light.castShadow = true;
   scene.add(light);
-  var ambientlight = new THREE.AmbientLight(0x404040); // soft white light
+  var ambientlight = new THREE.AmbientLight(0x222222); // soft white light
   scene.add(ambientlight);
 
   //Set up shadow properties for the light
-  light.shadow.mapSize.width = 1024;  // default
-  light.shadow.mapSize.height = 1024; // default
+  light.shadow.mapSize.width = 1024;
+  light.shadow.mapSize.height = 1024;
   light.shadow.camera.near = 0.5;       // default
   light.shadow.camera.far = 100      // default
+  light.shadow.camera.left = light.shadow.camera.bottom = -100;
+  light.shadow.camera.right = light.shadow.camera.top = 100
+  scene.add(new THREE.CameraHelper(light.shadow.camera));
+
 
   var axesHelper = new THREE.AxesHelper(5);
   scene.add(axesHelper);
@@ -76,18 +80,32 @@ var archetypeFactory = function (archetypeName: string): { material: THREE.Mater
     case "SimpleCube":
       return (function () {
         var geometry = new THREE.BoxGeometry(1, 1, 1);
+        geometry.translate(0, 0, 0.5);
         var material = new THREE.MeshPhongMaterial({ color: "#433F81" });
         var cube = new THREE.Mesh(geometry, material);
         cube.castShadow = true; //default is false
         return { material: material, object: cube };
       })()
     //
+    case "TestGroup":
+      return (function () {
+        var geometry = new THREE.BoxGeometry(1, 1, 1);
+        geometry.translate(0, 0, 0.5);
+        var material = new THREE.MeshPhongMaterial({ color: "#aaff99" });
+        var cube = new THREE.Mesh(geometry, material);
+        cube.castShadow = true; //default is false
+        cube.position.set(2, 2, 2)
+        var g = new THREE.Group();
+        g.add(cube);
+        var c1 = cube.clone()
+        c1.position.set(-2, -1, 1);
+        g.add(c1);
+        return { material: material, object: g };
+      })()
     default:
       throw "can't find archetypeName '" + archetypeName + "'";
   }
 }
-
-
 
 
 
@@ -96,14 +114,28 @@ const initKrookiElement = function (elDesc: KrookiElementDescriptor): KrookiElem
   archetypeInstance.object.position.x = elDesc.location.x;
   archetypeInstance.object.position.y = elDesc.location.y;
 
-  return {
+  var tmpKrookiElement = {
     __descriptor: elDesc,
     object_3: archetypeInstance.object,
     material_3: archetypeInstance.material,
+  };
+
+  // assign element so that we can get KrookiElement from object in raycast
+  if (elDesc.clickable) {
+    var assignElement = function assignElement(obj: THREE.Object3D) {
+      (<any>obj).krookiElement = tmpKrookiElement;
+      if (obj.children.length > 0) {
+        obj.children.forEach(assignElement);
+      }
+    }
+    assignElement(tmpKrookiElement.object_3)
   }
+  return tmpKrookiElement;
 }
-const initKrooki = function (desc: krookiDescriptor) {
-  var sceneInfo = prepareScene(document.body);
+
+
+const initKrooki = function (desc: krookiDescriptor, domEl: HTMLElement) {
+  var sceneInfo = prepareScene(domEl);
   var elements = desc.elementDescriptors.map(initKrookiElement);
   elements.forEach(function (o) { sceneInfo.scene.add(o.object_3) });
   //
@@ -115,9 +147,39 @@ const initKrooki = function (desc: krookiDescriptor) {
   }
   // render function
   var renderfn = function () {
-    mapControls.update() ;
-    sceneInfo.render() ;
+    mapControls.update();
+    sceneInfo.render();
   }
+  // var focusOnElementFn = function (el : KrookiElement) {
+
+  var prevBoxSelector: null | Object3D = null;
+  var focusOnElementFn = function (el: KrookiElement) {
+    if (prevBoxSelector) {
+      sceneInfo.scene.remove(prevBoxSelector)
+    }
+    var boxSelector = new THREE.BoxHelper(el.object_3);
+    prevBoxSelector = boxSelector;
+    krooki.scene_3.add(prevBoxSelector);
+
+
+    var boundingBox = new THREE.Box3().setFromObject(el.object_3);
+    var centroid = new THREE.Vector3(
+      (boundingBox.max.x + boundingBox.min.x) / 2,
+      (boundingBox.max.y + boundingBox.min.y) / 2,
+      (boundingBox.max.z + boundingBox.min.z) / 2);
+    var cameraCircle: { focusCenter: THREE.Vector3, center: THREE.Vector3, radius: number } = {
+      center: new THREE.Vector3(centroid.x, centroid.y, centroid.z + (boundingBox.max.z - boundingBox.min.z) * 2),
+      radius: Math.max(boundingBox.max.x - boundingBox.min.x, boundingBox.max.y - boundingBox.min.y) * 2,
+      focusCenter: centroid,
+    }
+
+    // TEMP
+    sceneInfo.camera.position.set(cameraCircle.center.x + cameraCircle.radius, cameraCircle.center.y, cameraCircle.center.z);
+    sceneInfo.camera.up.set(0, 0, 1);
+    sceneInfo.camera.lookAt(cameraCircle.focusCenter);
+    mapControls.target = cameraCircle.focusCenter;
+  }
+
   //
   return {
     __descriptor: desc,
@@ -126,7 +188,8 @@ const initKrooki = function (desc: krookiDescriptor) {
     camera_3: sceneInfo.camera,
     render: renderfn,
     elements: elements,
-    mapControls : mapControls,
+    mapControls: mapControls,
+    focusOnElement: focusOnElementFn
   }
 }
 
@@ -144,61 +207,64 @@ var createGround = function (dim: { w: number, h: number }) {
 var kDescEx: krookiDescriptor = {
   dimension: { w: 100, h: 100 },
   showGround: true,
-  elementDescriptors: [],
+  elementDescriptors: [{
+    archetype: 'TestGroup',
+    location: { x: 10, y: 10 },
+    clickable: true,
+  }],
 }
-for ( var i = 0 ; i < 1000 ; i++ ) {
+for (var i = 0; i < 1000; i++) {
   kDescEx.elementDescriptors.push({
     archetype: 'SimpleCube',
-    location: { x: (Math.random() * 100) - 50  ,y: (Math.random() * 100) - 50 },
+    location: { x: (Math.random() * 100) - 50, y: (Math.random() * 100) - 50 },
     clickable: true
   })
 }
 
-var krooki = initKrooki(kDescEx);
+var krooki = initKrooki(kDescEx, document.body);
 
 krooki.render()
 
 //////////
+
 var raycaster = new THREE.Raycaster();
-var raycaste = function ( loc : THREE.Vector2 ) {
+var raycaste = function (loc: THREE.Vector2) {
   raycaster.setFromCamera(loc, krooki.camera_3);
-  var intersects = raycaster.intersectObjects(krooki.elements.map(function(el) { return el.object_3}), true); //array
+  var intersects = raycaster.intersectObjects(krooki.elements.map(function (el) { return el.object_3 }), true); //array
   if (intersects.length > 0) {
+
     var selectedObject = intersects[0];
-    (<THREE.MeshPhongMaterial>(<THREE.Mesh>selectedObject.object).material).color.setHex(Math.random() * 0xffffff);
-		var particle = new THREE.Sprite(new THREE.SpriteMaterial({color : 0xff0000}) );
-					particle.position.copy( intersects[ 0 ].point );
-					particle.scale.x = particle.scale.y = 1;
-					krooki.scene_3.add( particle );
+    //(<THREE.MeshPhongMaterial>(<THREE.Mesh>selectedObject.object).material).color.setHex(Math.random() * 0xffffff);
+    krooki.focusOnElement(<KrookiElement>(<any>selectedObject.object).krookiElement);
     //selectedObject.object.position.x += 0.2;
   }
 }
-var clickDelta : Date;
+var clickDelta: Date;
 krooki.renderer_3.domElement.addEventListener("mousedown", function (event) {
   clickDelta = new Date();
 }, false);
 krooki.renderer_3.domElement.addEventListener("mouseup", function (event) {
-  if (clickDelta && ((new Date()).getTime() - clickDelta.getTime()) < 200 ) {
+  if (clickDelta && ((new Date()).getTime() - clickDelta.getTime()) < 200) {
     var mouse = new THREE.Vector2();
-    mouse.x = ( event.clientX / krooki.renderer_3.domElement.clientWidth) * 2 - 1;
-    mouse.y = - ( event.clientY / krooki.renderer_3.domElement.clientHeight) * 2 + 1 ;
-    raycaste ( mouse);
+    mouse.x = (event.clientX / krooki.renderer_3.domElement.clientWidth) * 2 - 1;
+    mouse.y = - (event.clientY / krooki.renderer_3.domElement.clientHeight) * 2 + 1;
+    raycaste(mouse);
   }
 }, false);
 
 
 
-var tapDelta : Date;
+var tapDelta: Date;
 krooki.renderer_3.domElement.addEventListener("touchstart", function (event) {
   tapDelta = new Date();
 }, false);
 
 krooki.renderer_3.domElement.addEventListener("touchend", function (event) {
-  if (tapDelta && ((new Date()).getTime() - tapDelta.getTime()) < 200 ) {
+  if (tapDelta && ((new Date()).getTime() - tapDelta.getTime()) < 200) {
     var touch = new THREE.Vector2();
-    touch.x = ( event.touches[0].clientX / krooki.renderer_3.domElement.clientWidth) * 2 - 1;
-    touch.y = - ( event.touches[0].clientY/ krooki.renderer_3.domElement.clientHeight) * 2 + 1 ;
-    raycaste ( touch);
+    touch.x = (event.touches[0].clientX / krooki.renderer_3.domElement.clientWidth) * 2 - 1;
+    touch.y = - (event.touches[0].clientY / krooki.renderer_3.domElement.clientHeight) * 2 + 1;
+    raycaste(touch);
   }
 }, false);
 
@@ -208,12 +274,20 @@ krooki.renderer_3.domElement.addEventListener("touchend", function (event) {
 
 
 
+
+
+//s.children.filter()
 
 var render = function () {
   requestAnimationFrame(render);
   krooki.render()
 };
 render()
+
+
+
+
+
 // var cube = createCube()
 // scene.add(createGround());
 // scene.add(cube);
