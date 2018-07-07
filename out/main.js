@@ -10,6 +10,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 /// 
 var THREE = __importStar(require("three"));
 var MapControls_1 = require("./MapControls");
+var TWEEN = __importStar(require("@tweenjs/tween.js"));
 //
 var prepareScene = function (container) {
     //
@@ -114,9 +115,13 @@ var initKrooki = function (desc, domEl) {
         sceneInfo.scene.add(ground);
     }
     // render function
-    var renderfn = function () {
+    var tweenObj = null;
+    var renderfn = function (t) {
         mapControls.update();
         sceneInfo.render();
+        if (tweenObj) {
+            tweenObj.update(t);
+        }
     };
     // var focusOnElementFn = function (el : KrookiElement) {
     var prevBoxSelector = null;
@@ -135,10 +140,16 @@ var initKrooki = function (desc, domEl) {
             focusCenter: centroid,
         };
         // TEMP
-        sceneInfo.camera.position.set(cameraCircle.center.x + cameraCircle.radius, cameraCircle.center.y, cameraCircle.center.z);
-        sceneInfo.camera.up.set(0, 0, 1);
-        sceneInfo.camera.lookAt(cameraCircle.focusCenter);
-        mapControls.target = cameraCircle.focusCenter;
+        tweenObj = new TWEEN.Tween(sceneInfo.camera.position.clone()).to({
+            x: cameraCircle.center.x + cameraCircle.radius,
+            y: cameraCircle.center.y,
+            z: cameraCircle.center.z
+        }, 3000).easing(TWEEN.Easing.Quadratic.In).onUpdate(function (obj) {
+            console.log(obj);
+            sceneInfo.camera.position.set(obj.x, obj.y, obj.z);
+            sceneInfo.camera.lookAt(cameraCircle.focusCenter);
+            mapControls.target = cameraCircle.focusCenter;
+        }).start();
     };
     //
     return {
@@ -176,7 +187,6 @@ for (var i = 0; i < 1000; i++) {
     });
 }
 var krooki = initKrooki(kDescEx, document.body);
-krooki.render();
 //////////
 var raycaster = new THREE.Raycaster();
 var raycaste = function (loc) {
@@ -214,11 +224,11 @@ krooki.renderer_3.domElement.addEventListener("touchend", function (event) {
     }
 }, false);
 //s.children.filter()
-var render = function () {
+var render = function (t) {
     requestAnimationFrame(render);
-    krooki.render();
+    krooki.render(t);
 };
-render();
+requestAnimationFrame(render);
 // var cube = createCube()
 // scene.add(createGround());
 // scene.add(cube);
