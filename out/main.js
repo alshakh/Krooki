@@ -20,6 +20,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 /// 
 var THREE = __importStar(require("three"));
 var MapControls_1 = require("./MapControls");
+var TWEEN = __importStar(require("@tweenjs/tween.js"));
 var KrookiElement = /** @class */ (function () {
     function KrookiElement(descriptor, parentKrooki) {
         this.__descriptor = descriptor;
@@ -28,9 +29,10 @@ var KrookiElement = /** @class */ (function () {
     }
     KrookiElement.prototype.assignReversePointer = function (obj) {
         //assign element so that we can get KrookiElement from object in raycast
-        obj.krookiElement = this;
+        var _this = this;
+        obj.krookiElement = _this;
         if (obj.children.length > 0) {
-            obj.children.forEach(this.assignReversePointer);
+            obj.children.forEach(function (f) { _this.assignReversePointer(f); });
         }
     };
     KrookiElement.prototype.getCentroid = function () {
@@ -76,25 +78,131 @@ var SimpleCube = /** @class */ (function (_super) {
         this.focusBox && this.parentKrooki.scene_3.remove(this.focusBox);
         this.focusBox = null;
     };
+    SimpleCube.prototype.getFocusables = function () {
+        return [this.object_3];
+    };
     return SimpleCube;
 }(KrookiElement));
-// class TestGroup  extends KrookiElement{
-//   case "TestGroup":
-//   return (function () {
-//     var geometry = new THREE.BoxGeometry(1, 1, 1);
-//     geometry.translate(0, 0, 0.5);
-//     var material = new THREE.MeshPhongMaterial({ color: "#aaff99" });
-//     var cube = new THREE.Mesh(geometry, material);
-//     cube.castShadow = true; //default is false
-//     cube.position.set(2, 2, 2)
-//     var g = new THREE.Group();
-//     g.add(cube);
-//     var c1 = cube.clone()
-//     c1.position.set(-2, -1, 1);
-//     g.add(c1);
-//     return { material: material, object: g };
-//   })()
-// }
+var DoubleCube = /** @class */ (function (_super) {
+    __extends(DoubleCube, _super);
+    //
+    function DoubleCube(descriptor, parentKrooki) {
+        var _this_1 = _super.call(this, descriptor, parentKrooki) || this;
+        _this_1.focusBox = null;
+        //
+        _this_1.object_3 = (function () {
+            var geometry = new THREE.BoxGeometry(1, 1, 1);
+            geometry.translate(0, 0, 0.5);
+            var material = new THREE.MeshPhongMaterial({ color: "#aaff99" });
+            var cube = new THREE.Mesh(geometry, material);
+            cube.castShadow = true; //default is false
+            cube.position.set(10, 10, 0);
+            var g = new THREE.Group();
+            g.add(cube);
+            var c1 = cube.clone();
+            c1.position.z = 2;
+            c1.translateX(1);
+            g.add(c1);
+            return g;
+        })();
+        //
+        _this_1.assignReversePointer(_this_1.object_3);
+        _this_1.object_3.position.set(descriptor.location.x, descriptor.location.y, 0);
+        _this_1.parentKrooki.scene_3.add(_this_1.object_3);
+        return _this_1;
+    }
+    DoubleCube.prototype.getBoundingBox = function () {
+        return new THREE.Box3().setFromObject(this.object_3);
+    };
+    DoubleCube.prototype.isFocused = function () {
+        return (this.focus !== null);
+    };
+    DoubleCube.prototype.focus = function () {
+        this.focusBox && this.unfocus(); // allow multiple calls to focus
+        this.focusBox = new THREE.BoxHelper(this.object_3);
+        this.parentKrooki.scene_3.add(this.focusBox);
+    };
+    DoubleCube.prototype.unfocus = function () {
+        this.focusBox && this.parentKrooki.scene_3.remove(this.focusBox);
+        this.focusBox = null;
+    };
+    DoubleCube.prototype.getFocusables = function () {
+        return [this.object_3];
+    };
+    return DoubleCube;
+}(KrookiElement));
+var FocusControls = /** @class */ (function () {
+    function FocusControls(camera, dom, focusables, onFocus, onUpdate, onComplete) {
+        this.raycaster_3 = new THREE.Raycaster();
+        this.tween = null;
+        this.onUpdate = onUpdate;
+        this.onComplete = onComplete;
+        this.onFocus = onFocus;
+        this.camera_3 = camera;
+        this.focusables = focusables;
+        this.dom = dom;
+        //
+        (function (_this) {
+            var clickDelta;
+            _this.dom.addEventListener("mousedown", function (event) {
+                clickDelta = new Date();
+            }, false);
+            _this.dom.addEventListener("mouseup", function (event) {
+                if (clickDelta && ((new Date()).getTime() - clickDelta.getTime()) < 200) {
+                    var mouse = new THREE.Vector2();
+                    mouse.x = (event.clientX / _this.dom.clientWidth) * 2 - 1;
+                    mouse.y = -(event.clientY / _this.dom.clientHeight) * 2 + 1;
+                    _this.raycaste(mouse);
+                }
+            }, false);
+        })(this);
+        // var tapDelta: Date;
+        // krooki.renderer_3.domElement.addEventListener("touchstart", function (event) {
+        //   tapDelta = new Date();
+        // }, false);
+        // krooki.renderer_3.domElement.addEventListener("touchend", function (event) {
+        //   if (tapDelta && ((new Date()).getTime() - tapDelta.getTime()) < 200) {
+        //     var touch = new THREE.Vector2();
+        //     touch.x = (event.touches[0].clientX / krooki.renderer_3.domElement.clientWidth) * 2 - 1;
+        //     touch.y = - (event.touches[0].clientY / krooki.renderer_3.domElement.clientHeight) * 2 + 1;
+        //     raycaste(touch);
+        //   }
+        // }, false);
+    }
+    FocusControls.prototype.raycaste = function (loc) {
+        this.raycaster_3.setFromCamera(loc, this.camera_3);
+        var intersects = this.raycaster_3.intersectObjects(this.focusables, true);
+        if (intersects.length > 0) {
+            var selectedObject = intersects[0];
+            var focuseOn = this.onFocus(selectedObject.object);
+            var cameraCircle = {
+                center: new THREE.Vector3(focuseOn.centroid.x, focuseOn.centroid.y, focuseOn.centroid.z + (focuseOn.bounding.max.z - focuseOn.bounding.min.z) * 2),
+                radius: Math.max(focuseOn.bounding.max.x - focuseOn.bounding.min.x, focuseOn.bounding.max.y - focuseOn.bounding.min.y) * 2,
+                focusCenter: focuseOn.centroid,
+            };
+            //smoothables = {dir : }
+            var _this = this;
+            this.tween && this.tween.stop();
+            this.tween = new TWEEN.Tween(this.camera_3.position.clone());
+            this.tween.to({
+                x: cameraCircle.center.x + cameraCircle.radius,
+                y: cameraCircle.center.y,
+                z: cameraCircle.center.z
+            }, 3000).easing(TWEEN.Easing.Quadratic.In).onUpdate(function (obj) {
+                _this.camera_3.position.set(obj.x, obj.y, obj.z);
+                _this.camera_3.lookAt(cameraCircle.focusCenter);
+                _this.onUpdate(_this.camera_3.position, cameraCircle.center);
+                // mapControls.target = cameraCircle.focusCenter;
+                console.log('onUpdate Called');
+            }).onComplete(function () { console.log('completed'); _this.tween = null; _this.onComplete(); }).start();
+        }
+    };
+    FocusControls.prototype.update = function (t) {
+        t && this.tween && this.tween.update(t);
+    };
+    return FocusControls;
+}());
+//
 var Krooki = /** @class */ (function () {
     //
     function Krooki(desc, containerDom) {
@@ -118,20 +226,34 @@ var Krooki = /** @class */ (function () {
             plane.receiveShadow = true; //default
             return plane;
         })(this.__descriptor.dimension));
-        // init controls
+        // init map controls
         this.mapControls = new MapControls_1.MapControls(this.camera_3, this.renderer_3.domElement);
         this.registerRenderCall(this.mapControls.update);
-        //
+        // init focus controls
+        var _this = this;
+        var _tmpRenderCall = function (t) { _this.focusControls.update(t); };
+        this.focusControls = new FocusControls(this.camera_3, this.renderer_3.domElement, this.elements.map(function (o) { return o.getFocusables(); }).reduce(function (b, c) { return b.concat(c); }, []), function (o) {
+            var ke = o.krookiElement;
+            _this.focusOnElement(ke);
+            _this.registerRenderCall(_tmpRenderCall);
+            return { centroid: ke.getCentroid(), bounding: ke.getBoundingBox() };
+        }, function (pos, lookAt) {
+            _this.mapControls.target = lookAt; // TODO
+        }, function () {
+            _this.unregisterRenderCall(_tmpRenderCall);
+        });
     }
     //
     Krooki.prototype.registerRenderCall = function (renderCall) {
         this.renderCalls.push(renderCall);
+        console.log('register', this.renderCalls);
     };
     Krooki.prototype.unregisterRenderCall = function (renderCall) {
         var index = this.renderCalls.indexOf(renderCall);
         if (index !== -1) {
             this.renderCalls.splice(index, 1);
         }
+        console.log('unregister', this.renderCalls);
     };
     Krooki.prototype.renderOnce = function () {
         this.renderCalls.forEach(function (f) { f(0); });
@@ -156,6 +278,9 @@ var Krooki = /** @class */ (function () {
         switch (k.archetype) {
             case "SimpleCube":
                 return new SimpleCube(k, this);
+            case "DoubleCube":
+                return new DoubleCube(k, this);
+            //
             //
             default:
                 throw "can't find archetypeName '" + k.archetype + "'";
@@ -201,29 +326,13 @@ var Krooki = /** @class */ (function () {
         };
     };
     Krooki.prototype.focusOnElement = function (el) {
-        if (!this._focusedElement) {
-            el.unfocus();
+        if (this._focusedElement) {
+            this._focusedElement.unfocus();
         }
         ;
         //
         el.focus();
-        var boundingBox = el.getBoundingBox();
-        var centroid = el.getCentroid();
-        var cameraCircle = {
-            center: new THREE.Vector3(centroid.x, centroid.y, centroid.z + (boundingBox.max.z - boundingBox.min.z) * 2),
-            radius: Math.max(boundingBox.max.x - boundingBox.min.x, boundingBox.max.y - boundingBox.min.y) * 2,
-            focusCenter: centroid,
-        };
-        // tweenObj = new TWEEN.Tween(sceneInfo.camera.position.clone()).to({
-        //   x: cameraCircle.center.x + cameraCircle.radius,
-        //   y: cameraCircle.center.y,
-        //   z: cameraCircle.center.z
-        // }, 3000).easing(TWEEN.Easing.Quadratic.In).onUpdate(function (obj) {
-        //   console.log(obj);
-        //   sceneInfo.camera.position.set(obj.x, obj.y, obj.z);
-        //   sceneInfo.camera.lookAt(cameraCircle.focusCenter);
-        //   mapControls.target = cameraCircle.focusCenter;
-        // }).start();
+        this._focusedElement = el;
     };
     return Krooki;
 }());
@@ -237,11 +346,11 @@ var kDescEx = {
     dimension: { w: 100, h: 100 },
     showGround: true,
     elementDescriptors: [
-    //   {
-    //   archetype: 'TestGroup',
-    //   location: { x: 10, y: 10 },
-    //   clickable: true,
-    // }
+        {
+            archetype: 'DoubleCube',
+            location: { x: 10, y: 10 },
+            clickable: true,
+        }
     ],
 };
 for (var i = 0; i < 1000; i++) {
