@@ -49381,6 +49381,7 @@ var FocusControls = /** @class */ (function () {
         this.focusables = focusables;
         this.dom = dom;
         //
+        // TODO :  Click while transetioning 
         (function (_this) {
             var clickDelta;
             _this.dom.addEventListener("mousedown", function (event) {
