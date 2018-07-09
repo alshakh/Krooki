@@ -19,7 +19,6 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 /// 
 var THREE = __importStar(require("three"));
-var MapControls_1 = require("./MapControls");
 var TWEEN = __importStar(require("@tweenjs/tween.js"));
 var KrookiElement = /** @class */ (function () {
     function KrookiElement(descriptor, parentKrooki) {
@@ -142,6 +141,7 @@ var FocusControls = /** @class */ (function () {
         this.focusables = focusables;
         this.dom = dom;
         //
+        // TODO :  Click while transetioning 
         (function (_this) {
             var clickDelta;
             _this.dom.addEventListener("mousedown", function (event) {
@@ -181,19 +181,40 @@ var FocusControls = /** @class */ (function () {
                 focusCenter: focuseOn.centroid,
             };
             //smoothables = {dir : }
+            var startPosition = new THREE.Vector3().copy(this.camera_3.position);
+            var endPosition = new THREE.Vector3(cameraCircle.center.x + cameraCircle.radius, cameraCircle.center.y, cameraCircle.center.z);
+            //
+            var startRotation = new THREE.Euler().copy(this.camera_3.rotation);
+            this.camera_3.position.copy(endPosition);
+            this.camera_3.lookAt(cameraCircle.focusCenter);
+            var endRotation = new THREE.Euler().copy(this.camera_3.rotation);
+            this.camera_3.position.copy(startPosition);
+            this.camera_3.rotation.copy(startRotation);
+            //
             var _this = this;
+            var startValues = {
+                px: startPosition.x,
+                py: startPosition.y,
+                pz: startPosition.z,
+                rx: startRotation.x,
+                ry: startRotation.y,
+                rz: startRotation.z,
+            };
+            var endValues = {
+                px: endPosition.x,
+                py: endPosition.y,
+                pz: endPosition.z,
+                rx: endRotation.x,
+                ry: endRotation.y,
+                rz: endRotation.z,
+            };
             this.tween && this.tween.stop();
-            this.tween = new TWEEN.Tween(this.camera_3.position.clone());
-            this.tween.to({
-                x: cameraCircle.center.x + cameraCircle.radius,
-                y: cameraCircle.center.y,
-                z: cameraCircle.center.z
-            }, 3000).easing(TWEEN.Easing.Quadratic.In).onUpdate(function (obj) {
-                _this.camera_3.position.set(obj.x, obj.y, obj.z);
-                _this.camera_3.lookAt(cameraCircle.focusCenter);
+            this.tween = new TWEEN.Tween(startValues);
+            this.tween.to(endValues, 3000).easing(TWEEN.Easing.Quadratic.In).onUpdate(function (obj) {
+                _this.camera_3.position.set(obj.px, obj.py, obj.pz);
+                _this.camera_3.rotation.set(obj.rx, obj.ry, obj.rz);
                 _this.onUpdate(_this.camera_3.position, cameraCircle.center);
                 // mapControls.target = cameraCircle.focusCenter;
-                console.log('onUpdate Called');
             }).onComplete(function () { console.log('completed'); _this.tween = null; _this.onComplete(); }).start();
         }
     };
@@ -227,8 +248,8 @@ var Krooki = /** @class */ (function () {
             return plane;
         })(this.__descriptor.dimension));
         // init map controls
-        this.mapControls = new MapControls_1.MapControls(this.camera_3, this.renderer_3.domElement);
-        this.registerRenderCall(this.mapControls.update);
+        ///this.mapControls = new MapControls(this.camera_3, this.renderer_3.domElement);
+        ///this.registerRenderCall(this.mapControls.update);
         // init focus controls
         var _this = this;
         var _tmpRenderCall = function (t) { _this.focusControls.update(t); };
@@ -238,7 +259,11 @@ var Krooki = /** @class */ (function () {
             _this.registerRenderCall(_tmpRenderCall);
             return { centroid: ke.getCentroid(), bounding: ke.getBoundingBox() };
         }, function (pos, lookAt) {
-            _this.mapControls.target = lookAt; // TODO
+            console.log('df');
+            // console.log(_this.mapControls.target);
+            // _this.mapControls.target.x = lookAt.x;
+            // _this.mapControls.target.y = lookAt.y;
+            // _this.mapControls.target.z = 0.5;
         }, function () {
             _this.unregisterRenderCall(_tmpRenderCall);
         });
@@ -253,7 +278,6 @@ var Krooki = /** @class */ (function () {
         if (index !== -1) {
             this.renderCalls.splice(index, 1);
         }
-        console.log('unregister', this.renderCalls);
     };
     Krooki.prototype.renderOnce = function () {
         this.renderCalls.forEach(function (f) { f(0); });

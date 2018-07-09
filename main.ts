@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { MapControls } from './MapControls'
 import * as TWEEN from '@tweenjs/tween.js'
-import { Camera } from 'three';
+import { Camera, TGALoader } from 'three';
 //threeControls.
 // interface KrookiElement {
 //   object_3: THREE.Object3D,
@@ -275,20 +275,41 @@ class FocusControls {
       }
 
       //smoothables = {dir : }
-
+      var startPosition = new THREE.Vector3().copy(this.camera_3.position);
+      var endPosition = new THREE.Vector3(cameraCircle.center.x + cameraCircle.radius,cameraCircle.center.y,cameraCircle.center.z) ;
+      //
+      var startRotation = new THREE.Euler().copy( this.camera_3.rotation );
+      this.camera_3.position.copy(endPosition);
+      this.camera_3.lookAt(cameraCircle.focusCenter);
+      var endRotation = new THREE.Euler().copy(this.camera_3.rotation);
+      this.camera_3.position.copy(startPosition);
+      this.camera_3.rotation.copy(startRotation);
+      //
       var _this = this;
+      var startValues = { 
+        px : startPosition.x,
+        py : startPosition.y,
+        pz : startPosition.z,
+        rx : startRotation.x,
+        ry : startRotation.y,
+        rz : startRotation.z,
+      }
+      var endValues = { 
+        px : endPosition.x, 
+        py : endPosition.y,
+        pz : endPosition.z,
+        rx : endRotation.x,
+        ry : endRotation.y,
+        rz : endRotation.z,
+      }
+
       this.tween && this.tween.stop();
-      this.tween = new TWEEN.Tween(this.camera_3.position.clone());
-      this.tween.to({
-        x: cameraCircle.center.x + cameraCircle.radius,
-        y: cameraCircle.center.y,
-        z: cameraCircle.center.z
-      }, 3000).easing(TWEEN.Easing.Quadratic.In).onUpdate(function (obj) {
-        _this.camera_3.position.set(obj.x, obj.y, obj.z);
-        _this.camera_3.lookAt(cameraCircle.focusCenter);
+      this.tween = new TWEEN.Tween(startValues);
+      this.tween.to(endValues, 3000).easing(TWEEN.Easing.Quadratic.In).onUpdate(function (obj) {
+        _this.camera_3.position.set(obj.px, obj.py, obj.pz);
+        _this.camera_3.rotation.set(obj.rx, obj.ry, obj.rz);
         _this.onUpdate(_this.camera_3.position, cameraCircle.center);
         // mapControls.target = cameraCircle.focusCenter;
-        console.log('onUpdate Called');
       }).onComplete(function() { console.log('completed') ; _this.tween = null ; _this.onComplete();}).start();
     }
   }
@@ -331,8 +352,8 @@ class Krooki {
       return plane;
     })(this.__descriptor.dimension));
     // init map controls
-    this.mapControls = new MapControls(this.camera_3, this.renderer_3.domElement);
-    this.registerRenderCall(this.mapControls.update);
+    ///this.mapControls = new MapControls(this.camera_3, this.renderer_3.domElement);
+    ///this.registerRenderCall(this.mapControls.update);
 
     // init focus controls
     var _this = this;
@@ -347,7 +368,11 @@ class Krooki {
         return { centroid: ke.getCentroid(), bounding: ke.getBoundingBox() };
       },
       function (pos, lookAt) {
-        _this.mapControls.target = lookAt; // TODO
+        console.log('df');
+        // console.log(_this.mapControls.target);
+        // _this.mapControls.target.x = lookAt.x;
+        // _this.mapControls.target.y = lookAt.y;
+        // _this.mapControls.target.z = 0.5;
       },
       function () { 
        _this.unregisterRenderCall( _tmpRenderCall);
@@ -364,8 +389,6 @@ class Krooki {
     if (index !== -1) {
       this.renderCalls.splice(index, 1);
     }
-    console.log('unregister', this.renderCalls)
-
   }
   public renderOnce() {
     this.renderCalls.forEach(function (f) { f(0) });
