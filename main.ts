@@ -165,7 +165,7 @@ class DoubleCube extends KrookiElement {
     //
     this.object_3 = (function () {
       var geometry = new THREE.BoxGeometry(1, 1, 1);
-      geometry.translate(0, 0, 0.5);
+      geometry.translate(0, 0, 5);
       var material = new THREE.MeshPhongMaterial({ color: "#aaff99" });
       var cube = new THREE.Mesh(geometry, material);
       cube.castShadow = true; //default is false
@@ -212,17 +212,20 @@ class FocusControls {
   private readonly onFocus: (o: THREE.Object3D) => { centroid: THREE.Vector3, bounding: THREE.Box3 };
   private readonly onComplete: () => void;
   private readonly onUpdate: (cameraPos: THREE.Vector3, cameraLookAt: THREE.Vector3) => void;
+  private readonly onInterrupt: () => void;
   private  tween : TWEEN.Tween |null = null ; 
   constructor(camera: THREE.Camera,
     dom: HTMLElement,
     focusables: THREE.Object3D[],
     onFocus: (o: THREE.Object3D) => { centroid: THREE.Vector3, bounding: THREE.Box3 },
     onUpdate: (cameraPos: THREE.Vector3, cameraLookAt: THREE.Vector3) => void,
-    onComplete: () => void
+    onComplete: () => void,
+    onInterrupt: () => void,
   ) {
     this.onUpdate = onUpdate;
     this.onComplete = onComplete;
     this.onFocus = onFocus;
+    this.onInterrupt = onInterrupt;
     this.camera_3 = camera;
     this.focusables = focusables;
     this.dom = dom;
@@ -273,17 +276,14 @@ class FocusControls {
         radius: Math.max(focuseOn.bounding.max.x - focuseOn.bounding.min.x, focuseOn.bounding.max.y - focuseOn.bounding.min.y) * 2,
         focusCenter: focuseOn.centroid,
       }
-
-      //smoothables = {dir : }
       var startPosition = new THREE.Vector3().copy(this.camera_3.position);
       var endPosition = new THREE.Vector3(cameraCircle.center.x + cameraCircle.radius,cameraCircle.center.y,cameraCircle.center.z) ;
-      //
-      var startRotation = new THREE.Euler().copy( this.camera_3.rotation );
+      var startRotation = new THREE.Quaternion().copy(this.camera_3.quaternion);
       this.camera_3.position.copy(endPosition);
       this.camera_3.lookAt(cameraCircle.focusCenter);
-      var endRotation = new THREE.Euler().copy(this.camera_3.rotation);
+      var endRotation = new THREE.Quaternion().copy(this.camera_3.quaternion);
       this.camera_3.position.copy(startPosition);
-      this.camera_3.rotation.copy(startRotation);
+      this.camera_3.quaternion.copy(startRotation);
       //
       var _this = this;
       var startValues = { 
@@ -293,6 +293,7 @@ class FocusControls {
         rx : startRotation.x,
         ry : startRotation.y,
         rz : startRotation.z,
+        rw : startRotation.w,
       }
       var endValues = { 
         px : endPosition.x, 
@@ -301,16 +302,28 @@ class FocusControls {
         rx : endRotation.x,
         ry : endRotation.y,
         rz : endRotation.z,
+        rw : endRotation.w,
       }
 
       this.tween && this.tween.stop();
+      // On Intruption ( Click while doing transition for before click )
+      if (this.tween) {
+        this.tween = null;
+        this.onInterrupt();
+      }
+
+
       this.tween = new TWEEN.Tween(startValues);
       this.tween.to(endValues, 3000).easing(TWEEN.Easing.Quadratic.In).onUpdate(function (obj) {
         _this.camera_3.position.set(obj.px, obj.py, obj.pz);
-        _this.camera_3.rotation.set(obj.rx, obj.ry, obj.rz);
-        _this.onUpdate(_this.camera_3.position, cameraCircle.center);
+        _this.camera_3.quaternion.set(obj.rx,obj.ry,obj.rz,obj.rw);
+        //_this.camera_3.rotation.set(obj.rx, obj.ry, obj.rz);
+        _this.onUpdate(_this.camera_3.position, cameraCircle.focusCenter);
         // mapControls.target = cameraCircle.focusCenter;
-      }).onComplete(function() { console.log('completed') ; _this.tween = null ; _this.onComplete();}).start();
+      }).onComplete(function() {
+        _this.tween = null;
+        _this.onComplete();
+      }).start();
     }
   }
 
@@ -352,8 +365,8 @@ class Krooki {
       return plane;
     })(this.__descriptor.dimension));
     // init map controls
-    ///this.mapControls = new MapControls(this.camera_3, this.renderer_3.domElement);
-    ///this.registerRenderCall(this.mapControls.update);
+    this.mapControls = new MapControls(this.camera_3, this.renderer_3.domElement);
+    this.registerRenderCall(this.mapControls.update);
 
     // init focus controls
     var _this = this;
@@ -368,21 +381,22 @@ class Krooki {
         return { centroid: ke.getCentroid(), bounding: ke.getBoundingBox() };
       },
       function (pos, lookAt) {
-        console.log('df');
-        // console.log(_this.mapControls.target);
-        // _this.mapControls.target.x = lookAt.x;
-        // _this.mapControls.target.y = lookAt.y;
-        // _this.mapControls.target.z = 0.5;
+          // console.log(_this.mapControls.target);
+         _this.mapControls.target.x = lookAt.x;
+         _this.mapControls.target.y = lookAt.y;
+         _this.mapControls.target.z = lookAt.z;
       },
-      function () { 
-       _this.unregisterRenderCall( _tmpRenderCall);
+      function () {
+       _this.unregisterRenderCall(_tmpRenderCall);
+      },
+      function() {
+        _this.unregisterRenderCall(_tmpRenderCall);
       }
     )
   }
   //
   public registerRenderCall(renderCall: (t?: number) => any) {
     this.renderCalls.push(renderCall);
-    console.log('register', this.renderCalls)
   }
   public unregisterRenderCall(renderCall: (t?: number) => any) {
     let index = this.renderCalls.indexOf(renderCall);
