@@ -21,6 +21,75 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var THREE = __importStar(require("three"));
 var MapControls_1 = require("./MapControls");
 var TWEEN = __importStar(require("@tweenjs/tween.js"));
+//threeControls.
+// interface KrookiElement {
+//   object_3: THREE.Object3D,
+//   material_3: THREE.Material,
+//   : KrookiElementDescriptor,
+// }
+// var archetypeFactory = function (archetypeName: string): { material: THREE.Material, object: THREE.Object3D } {
+//   switch (archetypeName) {
+//     case "SimpleCube":
+//       return (function () {
+//         var geometry = new THREE.BoxGeometry(1, 1, 1);
+//         geometry.translate(0, 0, 0.5);
+//         var material = new THREE.MeshPhongMaterial({ color: "#433F81" });
+//         var cube = new THREE.Mesh(geometry, material);
+//         cube.castShadow = true; //default is false
+//         return { material: material, object: cube };
+//       })()
+//     //
+//     case "TestGroup":
+//       return (function () {
+//         var geometry = new THREE.BoxGeometry(1, 1, 1);
+//         geometry.translate(0, 0, 0.5);
+//         var material = new THREE.MeshPhongMaterial({ color: "#aaff99" });
+//         var cube = new THREE.Mesh(geometry, material);
+//         cube.castShadow = true; //default is false
+//         cube.position.set(2, 2, 2)
+//         var g = new THREE.Group();
+//         g.add(cube);
+//         var c1 = cube.clone()
+//         c1.position.set(-2, -1, 1);
+//         g.add(c1);
+//         return { material: material, object: g };
+//       })()
+//     default:
+//       throw "can't find archetypeName '" + archetypeName + "'";
+//   }
+// }
+// const initKrookiElement = function (elDesc: KrookiElementDescriptor): KrookiElement {
+//   var archetypeInstance = archetypeFactory(elDesc.archetype)
+//   archetypeInstance.object.position.x = elDesc.location.x;
+//   archetypeInstance.object.position.y = elDesc.location.y;
+//   var tmpKrookiElement = {
+//     __descriptor: elDesc,
+//     object_3: archetypeInstance.object,
+//     material_3: archetypeInstance.material,
+//   };
+//   // assign element so that we can get KrookiElement from object in raycast
+//   if (elDesc.clickable) {
+//     var assignElement = function assignElement(obj: THREE.Object3D) {
+//       (<any>obj).krookiElement = tmpKrookiElement;
+//       if (obj.children.length > 0) {
+//         obj.children.forEach(assignElement);
+//       }
+//     }
+//     assignElement(tmpKrookiElement.object_3)
+//   }
+//   return tmpKrookiElement;
+// }
+function getEventLocation(event, dom) {
+    var loc = new THREE.Vector2();
+    if (event instanceof MouseEvent) {
+        loc.x = (event.clientX / dom.clientWidth) * 2 - 1;
+        loc.y = -(event.clientY / dom.clientHeight) * 2 + 1;
+    }
+    else {
+    }
+    console.log(loc);
+    return loc;
+}
 var KrookiElement = /** @class */ (function () {
     function KrookiElement(descriptor, parentKrooki) {
         this.__descriptor = descriptor;
@@ -29,10 +98,9 @@ var KrookiElement = /** @class */ (function () {
     }
     KrookiElement.prototype.assignReversePointer = function (obj) {
         //assign element so that we can get KrookiElement from object in raycast
-        var _this = this;
-        obj.krookiElement = _this;
+        obj.krookiElement = this;
         if (obj.children.length > 0) {
-            obj.children.forEach(function (f) { _this.assignReversePointer(f); });
+            obj.children.forEach(this.assignReversePointer.bind(this));
         }
     };
     KrookiElement.prototype.getCentroid = function () {
@@ -48,6 +116,8 @@ var SimpleCube = /** @class */ (function (_super) {
     function SimpleCube(descriptor, parentKrooki) {
         var _this_1 = _super.call(this, descriptor, parentKrooki) || this;
         _this_1.focusBox = null;
+        _this_1.focusCone = null;
+        _this_1.updateFn = null;
         //
         _this_1.object_3 = (function () {
             var geometry = new THREE.BoxGeometry(1, 1, 1);
@@ -67,16 +137,35 @@ var SimpleCube = /** @class */ (function (_super) {
         return new THREE.Box3().setFromObject(this.object_3);
     };
     SimpleCube.prototype.isFocused = function () {
-        return (this.focus !== null);
+        return (this.focusCone !== null);
     };
     SimpleCube.prototype.focus = function () {
         this.focusBox && this.unfocus(); // allow multiple calls to focus
+        //
         this.focusBox = new THREE.BoxHelper(this.object_3);
         this.parentKrooki.scene_3.add(this.focusBox);
+        //
+        this.focusCone = (function (_this) {
+            return new THREE.Mesh(new THREE.ConeGeometry(0.5, 2, 5, 1, false), new THREE.MeshLambertMaterial({ color: 0xff0000 }));
+        })(this);
+        this.parentKrooki.scene_3.add(this.focusCone);
+        //
+        var _this = this;
+        this.updateFn = function (t) {
+            _this.focusCone && _this.focusCone.translateZ(2 * Math.sin(t));
+        };
+        //
+        this.parentKrooki.registerRenderCall(this.updateFn);
     };
     SimpleCube.prototype.unfocus = function () {
         this.focusBox && this.parentKrooki.scene_3.remove(this.focusBox);
         this.focusBox = null;
+        //
+        this.focusCone && this.parentKrooki.scene_3.remove(this.focusCone);
+        this.focusCone;
+        //
+        this.updateFn && this.parentKrooki.unregisterRenderCall(this.updateFn);
+        this.updateFn = null;
     };
     SimpleCube.prototype.getFocusables = function () {
         return [this.object_3];
@@ -92,7 +181,7 @@ var DoubleCube = /** @class */ (function (_super) {
         //
         _this_1.object_3 = (function () {
             var geometry = new THREE.BoxGeometry(1, 1, 1);
-            geometry.translate(0, 0, 10);
+            geometry.translate(0, 0, 5);
             var material = new THREE.MeshPhongMaterial({ color: "#aaff99" });
             var cube = new THREE.Mesh(geometry, material);
             cube.castShadow = true; //default is false
@@ -151,10 +240,7 @@ var FocusControls = /** @class */ (function () {
             }, false);
             _this.dom.addEventListener("mouseup", function (event) {
                 if (clickDelta && ((new Date()).getTime() - clickDelta.getTime()) < 200) {
-                    var mouse = new THREE.Vector2();
-                    mouse.x = (event.clientX / _this.dom.clientWidth) * 2 - 1;
-                    mouse.y = -(event.clientY / _this.dom.clientHeight) * 2 + 1;
-                    _this.raycaste(mouse);
+                    _this.raycaste(getEventLocation(event, _this.dom));
                 }
             }, false);
         })(this);
@@ -175,6 +261,12 @@ var FocusControls = /** @class */ (function () {
         this.raycaster_3.setFromCamera(loc, this.camera_3);
         var intersects = this.raycaster_3.intersectObjects(this.focusables, true);
         if (intersects.length > 0) {
+            // On Intruption ( Click while doing transition for before click )
+            if (this.tween) {
+                this.tween = null;
+                this.onInterrupt();
+            }
+            //
             var selectedObject = intersects[0];
             var focuseOn = this.onFocus(selectedObject.object);
             var cameraCircle = {
@@ -191,7 +283,6 @@ var FocusControls = /** @class */ (function () {
             this.camera_3.position.copy(startPosition);
             this.camera_3.quaternion.copy(startRotation);
             //
-            var _this = this;
             var startValues = {
                 px: startPosition.x,
                 py: startPosition.y,
@@ -210,22 +301,15 @@ var FocusControls = /** @class */ (function () {
                 rz: endRotation.z,
                 rw: endRotation.w,
             };
-            this.tween && this.tween.stop();
-            // On Intruption ( Click while doing transition for before click )
-            if (this.tween) {
-                this.tween = null;
-                this.onInterrupt();
-            }
+            var _this = this;
             this.tween = new TWEEN.Tween(startValues);
             this.tween.to(endValues, 3000).easing(TWEEN.Easing.Quadratic.In).onUpdate(function (obj) {
                 _this.camera_3.position.set(obj.px, obj.py, obj.pz);
                 _this.camera_3.quaternion.set(obj.rx, obj.ry, obj.rz, obj.rw);
-                //_this.camera_3.rotation.set(obj.rx, obj.ry, obj.rz);
                 _this.onUpdate(_this.camera_3.position, cameraCircle.focusCenter);
-                // mapControls.target = cameraCircle.focusCenter;
             }).onComplete(function () {
                 _this.tween = null;
-                _this.onComplete();
+                _this.onComplete(cameraCircle.focusCenter);
             }).start();
         }
     };
@@ -239,7 +323,7 @@ var Krooki = /** @class */ (function () {
     //
     function Krooki(desc, containerDom) {
         //
-        this.renderCalls = [];
+        this.renderCalls = new Set();
         this._focusedElement = null;
         this.__descriptor = desc;
         this.containerDom = containerDom;
@@ -269,39 +353,33 @@ var Krooki = /** @class */ (function () {
             _this.focusOnElement(ke);
             _this.registerRenderCall(_tmpRenderCall);
             return { centroid: ke.getCentroid(), bounding: ke.getBoundingBox() };
-        }, function (pos, lookAt) {
-            // console.log(_this.mapControls.target);
+        }, function (pos, lookAt) { }, function (lookAt) {
+            _this.unregisterRenderCall(_tmpRenderCall);
             _this.mapControls.target.x = lookAt.x;
             _this.mapControls.target.y = lookAt.y;
             _this.mapControls.target.z = lookAt.z;
-        }, function () {
-            _this.unregisterRenderCall(_tmpRenderCall);
         }, function () {
             _this.unregisterRenderCall(_tmpRenderCall);
         });
     }
     //
     Krooki.prototype.registerRenderCall = function (renderCall) {
-        this.renderCalls.push(renderCall);
+        this.renderCalls.add(renderCall);
     };
     Krooki.prototype.unregisterRenderCall = function (renderCall) {
-        var index = this.renderCalls.indexOf(renderCall);
-        if (index !== -1) {
-            this.renderCalls.splice(index, 1);
-        }
+        this.renderCalls.delete(renderCall);
     };
     Krooki.prototype.renderOnce = function () {
         this.renderCalls.forEach(function (f) { f(0); });
         this.renderer_3.render(this.scene_3, this.camera_3);
     };
     Krooki.prototype.renderContinue = function (t) {
-        var _this = this;
         //
         if (t) {
             this.renderCalls.forEach(function (f) { f(t); });
             this.renderer_3.render(this.scene_3, this.camera_3);
         }
-        requestAnimationFrame(function (t) { _this.renderContinue(t); });
+        requestAnimationFrame(this.renderContinue.bind(this));
     };
     //
     Krooki.prototype.resizeViewport = function () {

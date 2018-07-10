@@ -3,7 +3,6 @@
 import * as THREE from 'three';
 import { MapControls } from './MapControls'
 import * as TWEEN from '@tweenjs/tween.js'
-import { Camera, TGALoader } from 'three';
 //threeControls.
 // interface KrookiElement {
 //   object_3: THREE.Object3D,
@@ -70,6 +69,20 @@ import { Camera, TGALoader } from 'three';
 //   return tmpKrookiElement;
 // }
 
+function getEventLocation(event : TouchEvent | MouseEvent, dom:HTMLElement) : THREE.Vector2 {
+  var loc = new THREE.Vector2();
+  if (event instanceof MouseEvent) { 
+    loc.x = (event.clientX / dom.clientWidth) * 2 - 1;
+    loc.y = - (event.clientY / dom.clientHeight) * 2 + 1;
+  
+  } else {
+
+  }
+  console.log(loc);
+  return loc;
+}
+
+
 interface KrookiElementDescriptor {
   archetype: string,
   location: { x: number, y: number },
@@ -95,10 +108,9 @@ abstract class KrookiElement {
   }
   protected assignReversePointer(obj: THREE.Object3D): void {
     //assign element so that we can get KrookiElement from object in raycast
-    var _this = this;
-    (<any>obj).krookiElement = _this;
+    (<any>obj).krookiElement = this;
     if (obj.children.length > 0) {
-      obj.children.forEach(function (f) { _this.assignReversePointer(f) });
+      obj.children.forEach( this.assignReversePointer.bind(this));
     }
   }
 
@@ -118,6 +130,8 @@ abstract class KrookiElement {
 class SimpleCube extends KrookiElement {
   private object_3: THREE.Object3D;
   private focusBox: THREE.BoxHelper | null = null;
+  private focusCone : THREE.Object3D | null = null;
+  private updateFn : ((t? : number) => void ) | null = null;
   //
   constructor(descriptor: KrookiElementDescriptor, parentKrooki: Krooki) {
     super(descriptor, parentKrooki);
@@ -140,17 +154,35 @@ class SimpleCube extends KrookiElement {
   }
 
   isFocused(): boolean {
-    return (this.focus !== null);
+    return (this.focusCone !== null);
   }
   focus() {
     this.focusBox && this.unfocus(); // allow multiple calls to focus
+    //
     this.focusBox = new THREE.BoxHelper(this.object_3);
     this.parentKrooki.scene_3.add(this.focusBox);
+    //
+    this.focusCone = (function (_this) {
+      return new THREE.Mesh(new THREE.ConeGeometry(0.5,2,5,1,false),new THREE.MeshLambertMaterial({color:0xff0000}));
+    })(this)
+    this.parentKrooki.scene_3.add(this.focusCone);
+    //
+    var _this = this;
+    this.updateFn = function(t? : number) {
+      _this.focusCone && _this.focusCone.translateZ(2 * Math.sin(t!) );
+    }
+    //
+    this.parentKrooki.registerRenderCall (this.updateFn);
   }
-
   unfocus() {
-    this.focusBox && this.parentKrooki.scene_3.remove(this.focusBox);
+    this.focusBox && this.parentKrooki.scene_3.remove(this.focusBox); 
     this.focusBox = null;
+    //
+    this.focusCone && this.parentKrooki.scene_3.remove(this.focusCone);
+    this.focusCone
+    //
+    this.updateFn && this.parentKrooki.unregisterRenderCall(this.updateFn);
+    this.updateFn = null;
   }
   getFocusables() {
     return [this.object_3];
@@ -210,16 +242,17 @@ class FocusControls {
   private readonly focusables: THREE.Object3D[];
   private readonly dom: HTMLElement;
   private readonly onFocus: (o: THREE.Object3D) => { centroid: THREE.Vector3, bounding: THREE.Box3 };
-  private readonly onComplete: () => void;
+  private readonly onComplete: (lookAt: THREE.Vector3) => void;
   private readonly onUpdate: (cameraPos: THREE.Vector3, cameraLookAt: THREE.Vector3) => void;
   private readonly onInterrupt: () => void;
-  private  tween : TWEEN.Tween |null = null ; 
-  constructor(camera: THREE.Camera,
+  private tween: TWEEN.Tween | null = null;
+  constructor(
+    camera: THREE.Camera,
     dom: HTMLElement,
     focusables: THREE.Object3D[],
     onFocus: (o: THREE.Object3D) => { centroid: THREE.Vector3, bounding: THREE.Box3 },
     onUpdate: (cameraPos: THREE.Vector3, cameraLookAt: THREE.Vector3) => void,
-    onComplete: () => void,
+    onComplete: (lookAt: THREE.Vector3) => void,
     onInterrupt: () => void,
   ) {
     this.onUpdate = onUpdate;
@@ -239,10 +272,7 @@ class FocusControls {
       }, false);
       _this.dom.addEventListener("mouseup", function (event: MouseEvent) {
         if (clickDelta && ((new Date()).getTime() - clickDelta.getTime()) < 200) {
-          var mouse = new THREE.Vector2();
-          mouse.x = (event.clientX / _this.dom.clientWidth) * 2 - 1;
-          mouse.y = - (event.clientY / _this.dom.clientHeight) * 2 + 1;
-          _this.raycaste(mouse);
+          _this.raycaste(getEventLocation(event,_this.dom));
         }
       }, false);
     })(this);
@@ -267,8 +297,13 @@ class FocusControls {
     this.raycaster_3.setFromCamera(loc, this.camera_3);
     var intersects = this.raycaster_3.intersectObjects(this.focusables, true);
     if (intersects.length > 0) {
+      // On Intruption ( Click while doing transition for before click )
+      if (this.tween) {
+        this.tween = null;
+        this.onInterrupt();
+      }
+      //
       var selectedObject = intersects[0];
-
       var focuseOn = this.onFocus(selectedObject.object);
 
       var cameraCircle: { focusCenter: THREE.Vector3, center: THREE.Vector3, radius: number } = {
@@ -277,7 +312,7 @@ class FocusControls {
         focusCenter: focuseOn.centroid,
       }
       var startPosition = new THREE.Vector3().copy(this.camera_3.position);
-      var endPosition = new THREE.Vector3(cameraCircle.center.x + cameraCircle.radius,cameraCircle.center.y,cameraCircle.center.z) ;
+      var endPosition = new THREE.Vector3(cameraCircle.center.x + cameraCircle.radius, cameraCircle.center.y, cameraCircle.center.z);
       var startRotation = new THREE.Quaternion().copy(this.camera_3.quaternion);
       this.camera_3.position.copy(endPosition);
       this.camera_3.lookAt(cameraCircle.focusCenter);
@@ -285,44 +320,34 @@ class FocusControls {
       this.camera_3.position.copy(startPosition);
       this.camera_3.quaternion.copy(startRotation);
       //
+      var startValues = {
+        px: startPosition.x,
+        py: startPosition.y,
+        pz: startPosition.z,
+        rx: startRotation.x,
+        ry: startRotation.y,
+        rz: startRotation.z,
+        rw: startRotation.w,
+      }
+      var endValues = {
+        px: endPosition.x,
+        py: endPosition.y,
+        pz: endPosition.z,
+        rx: endRotation.x,
+        ry: endRotation.y,
+        rz: endRotation.z,
+        rw: endRotation.w,
+      }
       var _this = this;
-      var startValues = { 
-        px : startPosition.x,
-        py : startPosition.y,
-        pz : startPosition.z,
-        rx : startRotation.x,
-        ry : startRotation.y,
-        rz : startRotation.z,
-        rw : startRotation.w,
-      }
-      var endValues = { 
-        px : endPosition.x, 
-        py : endPosition.y,
-        pz : endPosition.z,
-        rx : endRotation.x,
-        ry : endRotation.y,
-        rz : endRotation.z,
-        rw : endRotation.w,
-      }
-
-      this.tween && this.tween.stop();
-      // On Intruption ( Click while doing transition for before click )
-      if (this.tween) {
-        this.tween = null;
-        this.onInterrupt();
-      }
-
-
       this.tween = new TWEEN.Tween(startValues);
       this.tween.to(endValues, 3000).easing(TWEEN.Easing.Quadratic.In).onUpdate(function (obj) {
         _this.camera_3.position.set(obj.px, obj.py, obj.pz);
-        _this.camera_3.quaternion.set(obj.rx,obj.ry,obj.rz,obj.rw);
-        //_this.camera_3.rotation.set(obj.rx, obj.ry, obj.rz);
+        _this.camera_3.quaternion.set(obj.rx, obj.ry, obj.rz, obj.rw);
         _this.onUpdate(_this.camera_3.position, cameraCircle.focusCenter);
-        // mapControls.target = cameraCircle.focusCenter;
-      }).onComplete(function() {
+      }).onComplete(function () {
         _this.tween = null;
-        _this.onComplete();
+
+        _this.onComplete(cameraCircle.focusCenter);
       }).start();
     }
   }
@@ -343,7 +368,7 @@ class Krooki {
   private readonly mapControls: any;
   private readonly focusControls: FocusControls;
   //
-  private renderCalls: ((t?: number) => any)[] = [];
+  private renderCalls: Set<(t?: number) => any> = new Set();
   //
   constructor(desc: krookiDescriptor, containerDom: HTMLElement) {
     this.__descriptor = desc;
@@ -370,8 +395,9 @@ class Krooki {
 
     // init focus controls
     var _this = this;
-    var _tmpRenderCall = function(t? : number) { _this.focusControls.update(t) };
-    this.focusControls = new FocusControls(this.camera_3,
+    var _tmpRenderCall =  function (t? : number) { _this.focusControls.update(t)};
+    this.focusControls = new FocusControls(
+      this.camera_3,
       this.renderer_3.domElement,
       this.elements.map(function (o) { return o.getFocusables() }).reduce(function (b, c) { return b.concat(c) }, []),
       function (o: THREE.Object3D) {
@@ -380,42 +406,36 @@ class Krooki {
         _this.registerRenderCall(_tmpRenderCall);
         return { centroid: ke.getCentroid(), bounding: ke.getBoundingBox() };
       },
-      function (pos, lookAt) {
-          // console.log(_this.mapControls.target);
-         _this.mapControls.target.x = lookAt.x;
-         _this.mapControls.target.y = lookAt.y;
-         _this.mapControls.target.z = lookAt.z;
+      function (pos, lookAt) { },
+      function (lookAt) {
+        _this.unregisterRenderCall(_tmpRenderCall);
+        _this.mapControls.target.x = lookAt.x;
+        _this.mapControls.target.y = lookAt.y;
+        _this.mapControls.target.z = lookAt.z;
       },
       function () {
-       _this.unregisterRenderCall(_tmpRenderCall);
-      },
-      function() {
         _this.unregisterRenderCall(_tmpRenderCall);
       }
     )
   }
   //
   public registerRenderCall(renderCall: (t?: number) => any) {
-    this.renderCalls.push(renderCall);
+    this.renderCalls.add(renderCall);
   }
   public unregisterRenderCall(renderCall: (t?: number) => any) {
-    let index = this.renderCalls.indexOf(renderCall);
-    if (index !== -1) {
-      this.renderCalls.splice(index, 1);
-    }
+    this.renderCalls.delete(renderCall);
   }
   public renderOnce() {
     this.renderCalls.forEach(function (f) { f(0) });
     this.renderer_3.render(this.scene_3, this.camera_3);
   }
   public renderContinue(t?: number) {
-    var _this = this;
     //
     if (t) {
       this.renderCalls.forEach(function (f) { f(t) });
       this.renderer_3.render(this.scene_3, this.camera_3);
     }
-    requestAnimationFrame(function (t) { _this.renderContinue(t); });
+    requestAnimationFrame(this.renderContinue.bind(this));
   }
   //
   private resizeViewport() {
