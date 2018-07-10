@@ -76,7 +76,7 @@ function getEventLocation(event : TouchEvent | MouseEvent, dom:HTMLElement) : TH
     loc.y = - (event.clientY / dom.clientHeight) * 2 + 1;
   
   } else {
-
+      // TODO
   }
   console.log(loc);
   return loc;
@@ -127,7 +127,7 @@ abstract class KrookiElement {
   public abstract getFocusables(): THREE.Object3D[];
 }
 //
-class SimpleCube extends KrookiElement {
+class RandomCube extends KrookiElement {
   private object_3: THREE.Object3D;
   private focusBox: THREE.BoxHelper | null = null;
   private focusCone : THREE.Object3D | null = null;
@@ -137,8 +137,12 @@ class SimpleCube extends KrookiElement {
     super(descriptor, parentKrooki);
     //
     this.object_3 = (function () {
-      var geometry = new THREE.BoxGeometry(1, 1, 1);
-      geometry.translate(0, 0, 0.5);
+      var sx = Math.random()+0.2;
+      var sy = Math.random()+0.2;
+      var sz = Math.random()+0.2;
+
+      var geometry = new THREE.BoxGeometry(sx,sy,sz);
+      geometry.translate(0,0,sz/2);
       var material = new THREE.MeshPhongMaterial({ color: "#433F81" });
       var cube = new THREE.Mesh(geometry, material);
       cube.castShadow = true; //default is false
@@ -163,13 +167,23 @@ class SimpleCube extends KrookiElement {
     this.parentKrooki.scene_3.add(this.focusBox);
     //
     this.focusCone = (function (_this) {
-      return new THREE.Mesh(new THREE.ConeGeometry(0.5,2,5,1,false),new THREE.MeshLambertMaterial({color:0xff0000}));
+      var g = new THREE.ConeGeometry(0.2,0.5,10,1,false);
+      g.rotateX(-Math.PI/2);
+      g.translate(0,0,0.5/2+0.1);
+
+      var m = new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:0xff0000}));
+      m.position.set(_this.__descriptor.location.x, _this.__descriptor.location.y, 0);
+      return m;
     })(this)
+
     this.parentKrooki.scene_3.add(this.focusCone);
     //
     var _this = this;
+    var qq = this.getBoundingBox().max.z;
     this.updateFn = function(t? : number) {
-      _this.focusCone && _this.focusCone.translateZ(2 * Math.sin(t!) );
+      if ( _this.focusCone ) {
+         _this.focusCone.position.z = qq + 0.3 + 0.3 *  Math.sin(t!/200);
+      }
     }
     //
     this.parentKrooki.registerRenderCall (this.updateFn);
@@ -220,7 +234,7 @@ class DoubleCube extends KrookiElement {
   }
 
   isFocused(): boolean {
-    return (this.focus !== null);
+    return (this.focusBox !== null);
   }
   focus() {
     this.focusBox && this.unfocus(); // allow multiple calls to focus
@@ -312,7 +326,7 @@ class FocusControls {
         focusCenter: focuseOn.centroid,
       }
       var startPosition = new THREE.Vector3().copy(this.camera_3.position);
-      var endPosition = new THREE.Vector3(cameraCircle.center.x + cameraCircle.radius, cameraCircle.center.y, cameraCircle.center.z);
+      var endPosition = new THREE.Vector3(cameraCircle.center.x + cameraCircle.radius * Math.sin(Math.PI/4), cameraCircle.center.y + cameraCircle.radius * Math.cos(Math.PI/4), cameraCircle.center.z);
       var startRotation = new THREE.Quaternion().copy(this.camera_3.quaternion);
       this.camera_3.position.copy(endPosition);
       this.camera_3.lookAt(cameraCircle.focusCenter);
@@ -445,8 +459,8 @@ class Krooki {
   private initElement(k: KrookiElementDescriptor): KrookiElement {
     // TODO : reduce coupling with specific implementations of KrookiElement  
     switch (k.archetype) {
-      case "SimpleCube":
-        return new SimpleCube(k, this);
+      case "RandomCube":
+        return new RandomCube(k, this);
       case "DoubleCube":
         return new DoubleCube(k, this);
       //
@@ -528,7 +542,7 @@ class Krooki {
 ///////////////////////////
 ///////////////////////////
 var kDescEx: krookiDescriptor = {
-  dimension: { w: 100, h: 100 },
+  dimension: { w: 50, h: 50 },
   showGround: true,
   elementDescriptors: [
     {
@@ -540,8 +554,8 @@ var kDescEx: krookiDescriptor = {
 }
 for (var i = 0; i < 1000; i++) {
   kDescEx.elementDescriptors.push({
-    archetype: 'SimpleCube',
-    location: { x: (Math.random() * 100) - 50, y: (Math.random() * 100) - 50 },
+    archetype: 'RandomCube',
+    location: { x: (Math.random() * 50) - 25, y: (Math.random() * 50) - 25 },
     clickable: true
   })
 }

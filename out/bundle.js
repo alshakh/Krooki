@@ -49325,6 +49325,7 @@ function getEventLocation(event, dom) {
         loc.y = -(event.clientY / dom.clientHeight) * 2 + 1;
     }
     else {
+        // TODO
     }
     console.log(loc);
     return loc;
@@ -49349,18 +49350,21 @@ var KrookiElement = /** @class */ (function () {
     return KrookiElement;
 }());
 //
-var SimpleCube = /** @class */ (function (_super) {
-    __extends(SimpleCube, _super);
+var RandomCube = /** @class */ (function (_super) {
+    __extends(RandomCube, _super);
     //
-    function SimpleCube(descriptor, parentKrooki) {
+    function RandomCube(descriptor, parentKrooki) {
         var _this_1 = _super.call(this, descriptor, parentKrooki) || this;
         _this_1.focusBox = null;
         _this_1.focusCone = null;
         _this_1.updateFn = null;
         //
         _this_1.object_3 = (function () {
-            var geometry = new THREE.BoxGeometry(1, 1, 1);
-            geometry.translate(0, 0, 0.5);
+            var sx = Math.random() + 0.2;
+            var sy = Math.random() + 0.2;
+            var sz = Math.random() + 0.2;
+            var geometry = new THREE.BoxGeometry(sx, sy, sz);
+            geometry.translate(0, 0, sz / 2);
             var material = new THREE.MeshPhongMaterial({ color: "#433F81" });
             var cube = new THREE.Mesh(geometry, material);
             cube.castShadow = true; //default is false
@@ -49372,31 +49376,39 @@ var SimpleCube = /** @class */ (function (_super) {
         _this_1.parentKrooki.scene_3.add(_this_1.object_3);
         return _this_1;
     }
-    SimpleCube.prototype.getBoundingBox = function () {
+    RandomCube.prototype.getBoundingBox = function () {
         return new THREE.Box3().setFromObject(this.object_3);
     };
-    SimpleCube.prototype.isFocused = function () {
+    RandomCube.prototype.isFocused = function () {
         return (this.focusCone !== null);
     };
-    SimpleCube.prototype.focus = function () {
+    RandomCube.prototype.focus = function () {
         this.focusBox && this.unfocus(); // allow multiple calls to focus
         //
         this.focusBox = new THREE.BoxHelper(this.object_3);
         this.parentKrooki.scene_3.add(this.focusBox);
         //
         this.focusCone = (function (_this) {
-            return new THREE.Mesh(new THREE.ConeGeometry(0.5, 2, 5, 1, false), new THREE.MeshLambertMaterial({ color: 0xff0000 }));
+            var g = new THREE.ConeGeometry(0.2, 0.5, 10, 1, false);
+            g.rotateX(-Math.PI / 2);
+            g.translate(0, 0, 0.5 / 2 + 0.1);
+            var m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: 0xff0000 }));
+            m.position.set(_this.__descriptor.location.x, _this.__descriptor.location.y, 0);
+            return m;
         })(this);
         this.parentKrooki.scene_3.add(this.focusCone);
         //
         var _this = this;
+        var qq = this.getBoundingBox().max.z;
         this.updateFn = function (t) {
-            _this.focusCone && _this.focusCone.translateZ(2 * Math.sin(t));
+            if (_this.focusCone) {
+                _this.focusCone.position.z = qq + 0.3 + 0.3 * Math.sin(t / 200);
+            }
         };
         //
         this.parentKrooki.registerRenderCall(this.updateFn);
     };
-    SimpleCube.prototype.unfocus = function () {
+    RandomCube.prototype.unfocus = function () {
         this.focusBox && this.parentKrooki.scene_3.remove(this.focusBox);
         this.focusBox = null;
         //
@@ -49406,10 +49418,10 @@ var SimpleCube = /** @class */ (function (_super) {
         this.updateFn && this.parentKrooki.unregisterRenderCall(this.updateFn);
         this.updateFn = null;
     };
-    SimpleCube.prototype.getFocusables = function () {
+    RandomCube.prototype.getFocusables = function () {
         return [this.object_3];
     };
-    return SimpleCube;
+    return RandomCube;
 }(KrookiElement));
 var DoubleCube = /** @class */ (function (_super) {
     __extends(DoubleCube, _super);
@@ -49443,7 +49455,7 @@ var DoubleCube = /** @class */ (function (_super) {
         return new THREE.Box3().setFromObject(this.object_3);
     };
     DoubleCube.prototype.isFocused = function () {
-        return (this.focus !== null);
+        return (this.focusBox !== null);
     };
     DoubleCube.prototype.focus = function () {
         this.focusBox && this.unfocus(); // allow multiple calls to focus
@@ -49514,7 +49526,7 @@ var FocusControls = /** @class */ (function () {
                 focusCenter: focuseOn.centroid,
             };
             var startPosition = new THREE.Vector3().copy(this.camera_3.position);
-            var endPosition = new THREE.Vector3(cameraCircle.center.x + cameraCircle.radius, cameraCircle.center.y, cameraCircle.center.z);
+            var endPosition = new THREE.Vector3(cameraCircle.center.x + cameraCircle.radius * Math.sin(Math.PI / 4), cameraCircle.center.y + cameraCircle.radius * Math.cos(Math.PI / 4), cameraCircle.center.z);
             var startRotation = new THREE.Quaternion().copy(this.camera_3.quaternion);
             this.camera_3.position.copy(endPosition);
             this.camera_3.lookAt(cameraCircle.focusCenter);
@@ -49628,8 +49640,8 @@ var Krooki = /** @class */ (function () {
     Krooki.prototype.initElement = function (k) {
         // TODO : reduce coupling with specific implementations of KrookiElement  
         switch (k.archetype) {
-            case "SimpleCube":
-                return new SimpleCube(k, this);
+            case "RandomCube":
+                return new RandomCube(k, this);
             case "DoubleCube":
                 return new DoubleCube(k, this);
             //
@@ -49695,7 +49707,7 @@ var Krooki = /** @class */ (function () {
 ///////////////////////////
 ///////////////////////////
 var kDescEx = {
-    dimension: { w: 100, h: 100 },
+    dimension: { w: 50, h: 50 },
     showGround: true,
     elementDescriptors: [
         {
@@ -49707,8 +49719,8 @@ var kDescEx = {
 };
 for (var i = 0; i < 1000; i++) {
     kDescEx.elementDescriptors.push({
-        archetype: 'SimpleCube',
-        location: { x: (Math.random() * 100) - 50, y: (Math.random() * 100) - 50 },
+        archetype: 'RandomCube',
+        location: { x: (Math.random() * 50) - 25, y: (Math.random() * 50) - 25 },
         clickable: true
     });
 }
