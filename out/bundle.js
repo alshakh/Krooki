@@ -49555,7 +49555,14 @@ var FocusControls = /** @class */ (function () {
                 focusCenter: focuseOn.centroid,
             };
             var startPosition = new THREE.Vector3().copy(this.camera_3.position);
-            var endPosition = new THREE.Vector3(cameraCircle.center.x + cameraCircle.radius * Math.sin(Math.PI / 4), cameraCircle.center.y + cameraCircle.radius * Math.cos(Math.PI / 4), cameraCircle.center.z);
+            var directionToEndPos = new THREE.Vector3().subVectors(startPosition, cameraCircle.center);
+            directionToEndPos.z = 0;
+            directionToEndPos.normalize().multiplyScalar(cameraCircle.radius);
+            var endPosition = new THREE.Vector3(cameraCircle.center.x + directionToEndPos.x, cameraCircle.center.y + directionToEndPos.y, cameraCircle.center.z);
+            console.log('start', startPosition);
+            console.log('dir', directionToEndPos);
+            console.log('end', endPosition);
+            console.log('--------------------------------------');
             var startRotation = new THREE.Quaternion().copy(this.camera_3.quaternion);
             this.camera_3.position.copy(endPosition);
             this.camera_3.lookAt(cameraCircle.focusCenter);
