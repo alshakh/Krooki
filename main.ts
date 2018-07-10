@@ -69,17 +69,69 @@ import * as TWEEN from '@tweenjs/tween.js'
 //   return tmpKrookiElement;
 // }
 
-function getEventLocation(event : TouchEvent | MouseEvent, dom:HTMLElement) : THREE.Vector2 {
-  var loc = new THREE.Vector2();
-  if (event instanceof MouseEvent) { 
-    loc.x = (event.clientX / dom.clientWidth) * 2 - 1;
-    loc.y = - (event.clientY / dom.clientHeight) * 2 + 1;
-  
-  } else {
-      // TODO
-  }
-  console.log(loc);
-  return loc;
+
+
+
+
+
+
+
+
+
+// function getMouseEventLocation(event : MouseEvent, dom:HTMLElement) : THREE.Vector2 {
+//   // var loc = new THREE.Vector2();
+//     var oe = event;
+//     var x = 0;
+//     var y = 0;
+//     if (event.pageX || event.pageY) {
+//         x = event.pageX;
+//         y = event.pageY;
+//     } else if (event.clientX || event.clientY) {
+//         var docEl = document.documentElement;
+//         x = event.clientX + document.body.scrollLeft + docEl.scrollLeft;
+//         y = event.clientY + document.body.scrollTop + docEl.scrollTop;
+//     }
+//     return new THREE.Vector2(x,y);
+// }
+
+
+
+// function normalizeEvent(event : TouchEvent | MouseEvent, dom:HTMLElement) : THREE.Vector2 {
+//   // var loc = new THREE.Vector2();
+//     var oe = event;
+//     var eventPointers = oe.changedTouches || oe.targetTouches || oe.touches || [ oe ],
+//     var i, len, ep, x, y;
+
+// for (i = 0, len = eventPointers.length; i < len; i++) {
+//     ep = eventPointers[i];
+
+//     // get the mouse coordinate relative to the page
+//     // http://www.quirksmode.org/js/events_properties.html
+//     x = y = 0;
+//     if (ep.pageX || ep.pageY) {
+//         x = ep.pageX;
+//         y = ep.pageY;
+//     } else if (ep.clientX || ep.clientY) {
+//         var docEl = document.documentElement;
+//         x = ep.clientX + document.body.scrollLeft + docEl.scrollLeft;
+//         y = ep.clientY + document.body.scrollTop + docEl.scrollTop;
+//     }
+
+//     // pointer id is either explicit or implied using index
+//     id = ep.pointerId || ep.identifier || i;
+
+//     pointers.push(new Pointer(x, y,));
+// }
+
+// return pointers;
+
+
+
+function getMouseEventLocation(event : MouseEvent,dom : HTMLElement) {
+  return new THREE.Vector2(
+    (event.clientX / dom.clientWidth) * 2 - 1,
+    -((event.clientY / dom.clientHeight) * 2 - 1)
+  )
 }
 
 
@@ -286,7 +338,7 @@ class FocusControls {
       }, false);
       _this.dom.addEventListener("mouseup", function (event: MouseEvent) {
         if (clickDelta && ((new Date()).getTime() - clickDelta.getTime()) < 200) {
-          _this.raycaste(getEventLocation(event,_this.dom));
+          _this.raycaste(getMouseEventLocation(event,_this.dom));
         }
       }, false);
     })(this);
@@ -352,9 +404,10 @@ class FocusControls {
         rz: endRotation.z,
         rw: endRotation.w,
       }
+      var duration = startPosition.distanceTo(endPosition)/50*3000;
       var _this = this;
       this.tween = new TWEEN.Tween(startValues);
-      this.tween.to(endValues, 3000).easing(TWEEN.Easing.Quadratic.In).onUpdate(function (obj) {
+      this.tween.to(endValues, duration).easing(TWEEN.Easing.Quadratic.InOut).onUpdate(function (obj) {
         _this.camera_3.position.set(obj.px, obj.py, obj.pz);
         _this.camera_3.quaternion.set(obj.rx, obj.ry, obj.rz, obj.rw);
         _this.onUpdate(_this.camera_3.position, cameraCircle.focusCenter);
@@ -398,7 +451,7 @@ class Krooki {
     this.elements = desc.elementDescriptors.map(function (a: KrookiElementDescriptor) { return _this.initElement(a) });
     this.scene_3.add((function (dim: { w: number, h: number }) {
       var geometry = new THREE.PlaneGeometry(dim.w, dim.h);
-      var material = new THREE.MeshLambertMaterial({ color: 0x999999 });
+      var material = new THREE.MeshBasicMaterial({ color: 0x999999 });
       var plane = new THREE.Mesh(geometry, material);
       plane.receiveShadow = true; //default
       return plane;
