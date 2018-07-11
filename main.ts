@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { MapControls } from './MapControls'
 import * as TWEEN from '@tweenjs/tween.js'
+import { Quaternion } from 'three';
 //threeControls.
 // interface KrookiElement {
 //   object_3: THREE.Object3D,
@@ -384,16 +385,11 @@ class FocusControls {
         focusCenter: focuseOn.centroid,
       }
       var startPosition = new THREE.Vector3().copy(this.camera_3.position);
-      
 
       var directionToEndPos = new THREE.Vector3().subVectors(startPosition,cameraCircle.center)
       directionToEndPos.z = 0 ;
-      directionToEndPos.normalize().multiplyScalar(cameraCircle.radius); 
-      var endPosition = new THREE.Vector3(cameraCircle.center.x + directionToEndPos.x, cameraCircle.center.y + directionToEndPos.y, cameraCircle.center.z);
-      console.log('start', startPosition)
-      console.log('dir',directionToEndPos);
-      console.log('end', endPosition)
-      console.log('--------------------------------------');
+      directionToEndPos.normalize();
+      var endPosition = new THREE.Vector3(cameraCircle.center.x, cameraCircle.center.y, cameraCircle.center.z).add(directionToEndPos.multiplyScalar(cameraCircle.radius));
       
       var startRotation = new THREE.Quaternion().copy(this.camera_3.quaternion);
       this.camera_3.position.copy(endPosition);
@@ -406,6 +402,7 @@ class FocusControls {
         px: startPosition.x,
         py: startPosition.y,
         pz: startPosition.z,
+
         rx: startRotation.x,
         ry: startRotation.y,
         rz: startRotation.z,
@@ -415,16 +412,18 @@ class FocusControls {
         px: endPosition.x,
         py: endPosition.y,
         pz: endPosition.z,
+
         rx: endRotation.x,
         ry: endRotation.y,
         rz: endRotation.z,
         rw: endRotation.w,
       }
-      var duration = startPosition.distanceTo(endPosition)/50*3000;
+      var duration = startPosition.distanceTo(endPosition)/50*15000;
       var _this = this;
       this.tween = new TWEEN.Tween(startValues);
       this.tween.to(endValues, duration).easing(TWEEN.Easing.Quadratic.InOut).onUpdate(function (obj) {
         _this.camera_3.position.set(obj.px, obj.py, obj.pz);
+   /// https://stackoverflow.com/questions/18401213/how-to-animate-the-camera-in-three-js-to-look-at-an-object     
         _this.camera_3.quaternion.set(obj.rx, obj.ry, obj.rz, obj.rw);
         _this.onUpdate(_this.camera_3.position, cameraCircle.focusCenter);
       }).onComplete(function () {
