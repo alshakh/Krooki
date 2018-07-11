@@ -396,6 +396,7 @@ class FocusControls {
         if (tapDelta && ((new Date()).getTime() - tapDelta.getTime()) < 200) {
           _this.raycaste(getEventLocation(event, _this.dom));
         }
+        console.log('touchend');
       }, false);
     })(this);
   }
