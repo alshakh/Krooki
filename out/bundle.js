@@ -49571,7 +49571,13 @@ var FocusControls = /** @class */ (function () {
                 return ret;
             })(this.camera_3);
             // Tween 
-            var tweenDuration = startCameraPos_1.distanceTo(endCameraPos_1) * 300;
+            var tweenDuration = (function (factor) {
+                var d = startCameraPos_1.distanceTo(endCameraPos_1) * factor;
+                if (d < 500) {
+                    d = 500;
+                }
+                return d;
+            })(100);
             var _this_2 = this;
             this.tween = new TWEEN.Tween({ x: startCameraPos_1.x, y: startCameraPos_1.y, z: startCameraPos_1.z, t: 0 })
                 .to({ x: endCameraPos_1.x, y: endCameraPos_1.y, z: endCameraPos_1.z, t: 1 }, tweenDuration)
@@ -49590,7 +49596,7 @@ var FocusControls = /** @class */ (function () {
         }
     };
     FocusControls.prototype.update = function (t) {
-        t && this.tween && this.tween.update(t);
+        this.tween && this.tween.update(t);
     };
     return FocusControls;
 }());
@@ -49649,12 +49655,13 @@ var Krooki = /** @class */ (function () {
         this.renderCalls.forEach(function (f) { f(0); });
         this.renderer_3.render(this.scene_3, this.camera_3);
     };
+    Krooki.prototype.renderContinous = function () {
+        requestAnimationFrame(this.renderContinue.bind(this));
+    };
     Krooki.prototype.renderContinue = function (t) {
         //
-        if (t) {
-            this.renderCalls.forEach(function (f) { f(t); });
-            this.renderer_3.render(this.scene_3, this.camera_3);
-        }
+        this.renderCalls.forEach(function (f) { f(t); });
+        this.renderer_3.render(this.scene_3, this.camera_3);
         requestAnimationFrame(this.renderContinue.bind(this));
     };
     //
@@ -49750,7 +49757,7 @@ for (var i = 0; i < 1000; i++) {
     });
 }
 var k = new Krooki(kDescEx, document.body);
-k.renderContinue();
+k.renderContinous();
 // k.renderOnce()
 //
 // const initKrooki = function (desc: krookiDescriptor, domEl: HTMLElement) {

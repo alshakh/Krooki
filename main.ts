@@ -184,7 +184,7 @@ class RandomCube extends KrookiElement {
   private object_3: THREE.Object3D;
   private focusBox: THREE.BoxHelper | null = null;
   private focusCone: THREE.Object3D | null = null;
-  private updateFn: ((t?: number) => void) | null = null;
+  private updateFn: ((t: number) => void) | null = null;
   //
   constructor(descriptor: KrookiElementDescriptor, parentKrooki: Krooki) {
     super(descriptor, parentKrooki);
@@ -233,7 +233,7 @@ class RandomCube extends KrookiElement {
     //
     var _this = this;
     var qq = this.getBoundingBox().max.z;
-    this.updateFn = function (t?: number) {
+    this.updateFn = function (t: number) {
       if (_this.focusCone) {
         _this.focusCone.position.z = qq + 0.3 + 0.3 * Math.sin(t! / 200);
       }
@@ -394,7 +394,13 @@ class FocusControls {
         return ret;
       })(this.camera_3);
       // Tween 
-      const tweenDuration = startCameraPos.distanceTo(endCameraPos) * 300;
+      const tweenDuration = (function(factor) {
+        var d = startCameraPos.distanceTo(endCameraPos) * factor;
+        if (d < 500 ) { 
+          d = 500;
+        }
+        return d;
+      })(100)
       const _this = this;
       this.tween = new TWEEN.Tween({ x: startCameraPos.x, y: startCameraPos.y, z: startCameraPos.z, t: 0 })
         .to({ x: endCameraPos.x, y: endCameraPos.y, z: endCameraPos.z, t: 1 }, tweenDuration)
@@ -402,8 +408,8 @@ class FocusControls {
         .onUpdate(function (v) {
           _this.camera_3.position.set(v.x, v.y, v.z);
           var qm = new THREE.Quaternion();
-          THREE.Quaternion.slerp(startCameraQuat,endCameraQuat,qm,v.t);
-          _this.camera_3.quaternion.set(qm.x,qm.y,qm.z,qm.w);
+          THREE.Quaternion.slerp(startCameraQuat, endCameraQuat, qm, v.t);
+          _this.camera_3.quaternion.set(qm.x, qm.y, qm.z, qm.w);
           _this.onUpdate(_this.camera_3.position, focusObjectInfo.centroid);
         })
         .onComplete(function () {
@@ -413,8 +419,8 @@ class FocusControls {
     }
   }
 
-  update(t?: number) {
-    t && this.tween && this.tween.update(t);
+  update(t: number) {
+    this.tween && this.tween.update(t);
   }
 }
 //
@@ -429,7 +435,7 @@ class Krooki {
   private readonly mapControls: any;
   private readonly focusControls: FocusControls;
   //
-  private renderCalls: Set<(t?: number) => any> = new Set();
+  private renderCalls: Set<(t: number) => any> = new Set();
   //
   constructor(desc: krookiDescriptor, containerDom: HTMLElement) {
     this.__descriptor = desc;
@@ -456,7 +462,7 @@ class Krooki {
 
     // init focus controls
     var _this = this;
-    var _tmpRenderCall = function (t?: number) { _this.focusControls.update(t) };
+    var _tmpRenderCall = function (t: number) { _this.focusControls.update(t) };
     this.focusControls = new FocusControls(
       this.camera_3,
       this.renderer_3.domElement,
@@ -480,22 +486,24 @@ class Krooki {
     )
   }
   //
-  public registerRenderCall(renderCall: (t?: number) => any) {
+  public registerRenderCall(renderCall: (t: number) => any) {
     this.renderCalls.add(renderCall);
   }
-  public unregisterRenderCall(renderCall: (t?: number) => any) {
+  public unregisterRenderCall(renderCall: (t: number) => any) {
     this.renderCalls.delete(renderCall);
   }
+  
   public renderOnce() {
     this.renderCalls.forEach(function (f) { f(0) });
     this.renderer_3.render(this.scene_3, this.camera_3);
   }
-  public renderContinue(t?: number) {
+  public renderContinous() {
+    requestAnimationFrame(this.renderContinue.bind(this));
+  }
+  private renderContinue(t: number) {
     //
-    if (t) {
-      this.renderCalls.forEach(function (f) { f(t) });
-      this.renderer_3.render(this.scene_3, this.camera_3);
-    }
+    this.renderCalls.forEach(function (f) { f(t) });
+    this.renderer_3.render(this.scene_3, this.camera_3);
     requestAnimationFrame(this.renderContinue.bind(this));
   }
   //
@@ -608,7 +616,7 @@ for (var i = 0; i < 1000; i++) {
 }
 
 var k = new Krooki(kDescEx, document.body);
-k.renderContinue()
+k.renderContinous()
 // k.renderOnce()
 
 //
