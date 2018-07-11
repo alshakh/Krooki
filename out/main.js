@@ -21,6 +21,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var THREE = __importStar(require("three"));
 var MapControls_1 = require("./MapControls");
 var TWEEN = __importStar(require("@tweenjs/tween.js"));
+var three_1 = require("three");
 function getEventLocation(event, dom) {
     var domOffset = (function () {
         var box = dom.getBoundingClientRect();
@@ -91,6 +92,7 @@ var RandomCube = /** @class */ (function (_super) {
             var material = new THREE.MeshPhongMaterial({ color: "#433F81" });
             var cube = new THREE.Mesh(geometry, material);
             cube.castShadow = true; //default is false
+            cube.receiveShadow = true;
             return cube;
         })();
         //
@@ -246,7 +248,6 @@ var FocusControls = /** @class */ (function () {
             var selectedObject = intersects[0];
             var focusObjectInfo_1 = this.onFocus(selectedObject.object);
             //
-            //
             var startCameraPos_1 = this.camera_3.position.clone();
             var endCameraPos_1 = (function () {
                 var endCameraPos = focusObjectInfo_1.centroid.clone();
@@ -299,27 +300,20 @@ var FocusControls = /** @class */ (function () {
 //
 var Krooki = /** @class */ (function () {
     //
-    function Krooki(desc, containerDom) {
+    function Krooki(desc) {
         //
         this.renderCalls = new Set();
         this._focusedElement = null;
         this.__descriptor = desc;
-        this.containerDom = containerDom;
         //
-        var _tmp = this.initScene();
+        var _tmp = this.initScene(desc);
         this.camera_3 = _tmp.camera;
         this.scene_3 = _tmp.scene;
         this.renderer_3 = _tmp.renderer;
+        this.domElement = this.renderer_3.domElement;
         // init elements
         var _this = this;
         this.elements = desc.elementDescriptors.map(function (a) { return _this.initElement(a); });
-        this.scene_3.add((function (dim) {
-            var geometry = new THREE.PlaneGeometry(dim.w, dim.h);
-            var material = new THREE.MeshBasicMaterial({ color: 0x999999 });
-            var plane = new THREE.Mesh(geometry, material);
-            plane.receiveShadow = true; //default
-            return plane;
-        })(this.__descriptor.dimension));
         // init map controls
         this.mapControls = new MapControls_1.MapControls(this.camera_3, this.renderer_3.domElement);
         this.registerRenderCall(this.mapControls.update);
@@ -379,36 +373,64 @@ var Krooki = /** @class */ (function () {
         }
     };
     //
-    Krooki.prototype.initScene = function () {
+    Krooki.prototype.initScene = function (desc) {
         //
-        var SCREEN_WIDTH = window.innerWidth;
-        var SCREEN_HEIGHT = window.innerHeight;
+        var screenWidth = (desc.viewport === 'FULL') ? window.innerWidth : desc.viewport.w;
+        var screenHeight = (desc.viewport === 'FULL') ? window.innerHeight : desc.viewport.h;
+        var lightVector = (new THREE.Vector3(desc.light.vector.x, desc.light.vector.y, desc.light.vector.z)).normalize();
+        var sceneDim = { w: desc.dimension.w, h: desc.dimension.h };
+        //
         var scene = new THREE.Scene();
-        var camera = new THREE.PerspectiveCamera(75, SCREEN_WIDTH / SCREEN_HEIGHT, 0.1, 1000);
-        camera.position.z = 10;
-        camera.position.y = 10;
-        camera.up.set(0, 0, 1);
-        camera.lookAt(0, 0, 0);
-        var renderer = new THREE.WebGLRenderer({ antialias: true });
-        this.containerDom.appendChild(renderer.domElement);
-        renderer.setClearColor("#cccccc");
-        renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        var light = new THREE.DirectionalLight(0xffffff);
-        light.position.set(3, 2, 10).multiplyScalar(4);
-        light.castShadow = true;
+        var camera = (function () {
+            var c = new THREE.PerspectiveCamera(75, screenWidth / screenHeight, 0.1, 1000);
+            c.position.z = 10;
+            c.position.y = 10;
+            c.up.set(0, 0, 1);
+            c.lookAt(0, 0, 0);
+            return c;
+        })();
+        var renderer = (function () {
+            var r = new THREE.WebGLRenderer({ antialias: true });
+            r.setClearColor("#cccccc");
+            r.setSize(screenWidth, screenHeight);
+            r.shadowMap.enabled = true;
+            r.shadowMap.type = THREE.PCFSoftShadowMap;
+            return r;
+        })();
+        var light = (function () {
+            var l = new THREE.DirectionalLight(0xffffff);
+            l.castShadow = true;
+            // set shadowMapSize relative to di
+            var shadowMapSize = Math.min(Math.pow(2, Math.ceil(Math.log(Math.max(sceneDim.w, sceneDim.h) * 50) / Math.log(2))), 8192);
+            l.shadow.mapSize.width = shadowMapSize;
+            l.shadow.mapSize.height = shadowMapSize;
+            // set up camera based on dimension
+            /// //// INACCURATE TODO TODO TODO TODO
+            var diag = (new THREE.Vector2(sceneDim.w / 2, sceneDim.h / 2)).length();
+            var lightPos = lightVector.clone().multiplyScalar(diag * lightVector.clone().projectOnPlane(new three_1.Vector3(0, 0, 1)).length()).add(new THREE.Vector3(10, 10, 10));
+            var lightDepth = lightPos.length() * 2;
+            var lightSide = diag * lightVector.clone().z;
+            //
+            l.position.add(lightPos);
+            l.shadow.camera.near = 0.5;
+            l.shadow.camera.far = lightDepth;
+            l.shadow.camera.left = l.shadow.camera.bottom = -lightSide;
+            l.shadow.camera.right = l.shadow.camera.top = lightSide;
+            return l;
+        })();
         scene.add(light);
         var ambientlight = new THREE.AmbientLight(0x222222); // soft white light
-        scene.add(ambientlight);
-        //Set up shadow properties for the light
-        light.shadow.mapSize.width = 1024;
-        light.shadow.mapSize.height = 1024;
-        light.shadow.camera.near = 0.5; // default
-        light.shadow.camera.far = 100; // default
-        light.shadow.camera.left = light.shadow.camera.bottom = -100;
-        light.shadow.camera.right = light.shadow.camera.top = 100;
+        if (desc.showGround) {
+            scene.add((function (dim) {
+                var geometry = new THREE.PlaneGeometry(dim.w, dim.h);
+                var material = new THREE.MeshLambertMaterial({ color: 0x999999 });
+                var plane = new THREE.Mesh(geometry, material);
+                plane.receiveShadow = true; //default
+                return plane;
+            })(sceneDim));
+        }
         scene.add(new THREE.CameraHelper(light.shadow.camera));
+        scene.add(ambientlight);
         var axesHelper = new THREE.AxesHelper(5);
         scene.add(axesHelper);
         return {
@@ -432,6 +454,10 @@ var Krooki = /** @class */ (function () {
 ///////////////////////////
 var kDescEx = {
     dimension: { w: 50, h: 50 },
+    light: {
+        vector: { x: 1, y: 2, z: 6 },
+    },
+    viewport: "FULL",
     showGround: true,
     elementDescriptors: [
         {
@@ -448,5 +474,6 @@ for (var i = 0; i < 1000; i++) {
         clickable: true
     });
 }
-var k = new Krooki(kDescEx, document.body);
+var k = new Krooki(kDescEx);
+document.body.appendChild(k.domElement);
 k.renderContinous();
