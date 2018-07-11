@@ -49385,7 +49385,7 @@ function getEventLocation(event, dom) {
     })();
     var locationRelativeToElement = { x: locationRelativeToPage.x - domOffset.left, y: locationRelativeToPage.y - domOffset.top };
     var normalizedLocation = { x: locationRelativeToElement.x / dom.offsetWidth, y: locationRelativeToElement.y / dom.offsetHeight };
-    var threeViewportLocation = { x: normalizedLocation.x * 2 - 1, y: (-normalizedLocation.y * 2) + 1 };
+    var threeViewportLocation = { x: normalizedLocation.x * 2 - 1, y: -(normalizedLocation.y * 2 - 1) };
     return new THREE.Vector2(threeViewportLocation.x, threeViewportLocation.y);
 }
 var KrookiElement = /** @class */ (function () {
@@ -49556,9 +49556,11 @@ var FocusControls = /** @class */ (function () {
         (function (_this) {
             var tapDelta;
             _this.dom.addEventListener("touchstart", function (event) {
+                event.preventDefault();
                 tapDelta = new Date();
             }, false);
             _this.dom.addEventListener("touchend", function (event) {
+                event.preventDefault();
                 if (tapDelta && ((new Date()).getTime() - tapDelta.getTime()) < 200) {
                     _this.raycaste(getEventLocation(event, _this.dom));
                 }

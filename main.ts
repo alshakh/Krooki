@@ -161,7 +161,7 @@ function getEventLocation(event: MouseEvent | TouchEvent, dom: HTMLElement) {
 
   const normalizedLocation = { x: locationRelativeToElement.x / dom.offsetWidth, y: locationRelativeToElement.y / dom.offsetHeight };
 
-  const threeViewportLocation = { x: normalizedLocation.x * 2 - 1, y: (-normalizedLocation.y * 2) + 1 };
+  const threeViewportLocation = { x: normalizedLocation.x * 2 - 1, y: - (normalizedLocation.y * 2 - 1) };
 
   return new THREE.Vector2(threeViewportLocation.x, threeViewportLocation.y);
 }
@@ -387,10 +387,12 @@ class FocusControls {
     (function (_this: FocusControls) {
       var tapDelta: Date;
       _this.dom.addEventListener("touchstart", function (event) {
+        event.preventDefault();
         tapDelta = new Date();
       }, false);
 
       _this.dom.addEventListener("touchend", function (event) {
+        event.preventDefault();
         if (tapDelta && ((new Date()).getTime() - tapDelta.getTime()) < 200) {
           _this.raycaste(getEventLocation(event, _this.dom));
         }
