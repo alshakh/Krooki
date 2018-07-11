@@ -135,7 +135,6 @@ function getEventLocation(event: MouseEvent | TouchEvent, dom: HTMLElement) {
       left: box.left + window.pageXOffset - document.documentElement.clientLeft
     };
   })()
-  console.log('domOffset',domOffset);
 
   //
   const locationRelativeToPage = (function () {
@@ -157,16 +156,12 @@ function getEventLocation(event: MouseEvent | TouchEvent, dom: HTMLElement) {
     }
     return { x: x, y: y };
   })()
-  console.log('locationRelativeToPage',locationRelativeToPage);
 
   const locationRelativeToElement = { x: locationRelativeToPage.x - domOffset.left, y: locationRelativeToPage.y - domOffset.top };
-  console.log('locationRelativeToElement',locationRelativeToElement);
 
   const normalizedLocation = { x: locationRelativeToElement.x / dom.offsetWidth, y: locationRelativeToElement.y / dom.offsetHeight };
-  console.log('normalizedLocation',normalizedLocation);
 
   const threeViewportLocation = { x: normalizedLocation.x * 2 - 1, y: (-normalizedLocation.y * 2) + 1 };
-  console.log('threeViewportLocation',threeViewportLocation);
 
   console.log('--------------------------------------');
   return new THREE.Vector2(threeViewportLocation.x, threeViewportLocation.y);
