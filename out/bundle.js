@@ -49364,7 +49364,6 @@ function getEventLocation(event, dom) {
             left: box.left + window.pageXOffset - document.documentElement.clientLeft
         };
     })();
-    console.log('domOffset', domOffset);
     //
     var locationRelativeToPage = (function () {
         var eventAny = event;
@@ -49384,14 +49383,9 @@ function getEventLocation(event, dom) {
         }
         return { x: x, y: y };
     })();
-    console.log('locationRelativeToPage', locationRelativeToPage);
     var locationRelativeToElement = { x: locationRelativeToPage.x - domOffset.left, y: locationRelativeToPage.y - domOffset.top };
-    console.log('locationRelativeToElement', locationRelativeToElement);
     var normalizedLocation = { x: locationRelativeToElement.x / dom.offsetWidth, y: locationRelativeToElement.y / dom.offsetHeight };
-    console.log('normalizedLocation', normalizedLocation);
     var threeViewportLocation = { x: normalizedLocation.x * 2 - 1, y: (-normalizedLocation.y * 2) + 1 };
-    console.log('threeViewportLocation', threeViewportLocation);
-    console.log('--------------------------------------');
     return new THREE.Vector2(threeViewportLocation.x, threeViewportLocation.y);
 }
 var KrookiElement = /** @class */ (function () {
@@ -49559,18 +49553,17 @@ var FocusControls = /** @class */ (function () {
                 }
             }, false);
         })(this);
-        // var tapDelta: Date;
-        // krooki.renderer_3.domElement.addEventListener("touchstart", function (event) {
-        //   tapDelta = new Date();
-        // }, false);
-        // krooki.renderer_3.domElement.addEventListener("touchend", function (event) {
-        //   if (tapDelta && ((new Date()).getTime() - tapDelta.getTime()) < 200) {
-        //     var touch = new THREE.Vector2();
-        //     touch.x = (event.touches[0].clientX / krooki.renderer_3.domElement.clientWidth) * 2 - 1;
-        //     touch.y = - (event.touches[0].clientY / krooki.renderer_3.domElement.clientHeight) * 2 + 1;
-        //     raycaste(touch);
-        //   }
-        // }, false);
+        (function (_this) {
+            var tapDelta;
+            _this.dom.addEventListener("touchstart", function (event) {
+                tapDelta = new Date();
+            }, false);
+            _this.dom.addEventListener("touchend", function (event) {
+                if (tapDelta && ((new Date()).getTime() - tapDelta.getTime()) < 200) {
+                    _this.raycaste(getEventLocation(event, _this.dom));
+                }
+            }, false);
+        })(this);
     }
     FocusControls.prototype.raycaste = function (loc) {
         this.raycaster_3.setFromCamera(loc, this.camera_3);

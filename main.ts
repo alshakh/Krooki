@@ -163,7 +163,6 @@ function getEventLocation(event: MouseEvent | TouchEvent, dom: HTMLElement) {
 
   const threeViewportLocation = { x: normalizedLocation.x * 2 - 1, y: (-normalizedLocation.y * 2) + 1 };
 
-  console.log('--------------------------------------');
   return new THREE.Vector2(threeViewportLocation.x, threeViewportLocation.y);
 }
 
@@ -385,19 +384,18 @@ class FocusControls {
     })(this);
 
 
-    // var tapDelta: Date;
-    // krooki.renderer_3.domElement.addEventListener("touchstart", function (event) {
-    //   tapDelta = new Date();
-    // }, false);
+    (function (_this: FocusControls) {
+      var tapDelta: Date;
+      _this.dom.addEventListener("touchstart", function (event) {
+        tapDelta = new Date();
+      }, false);
 
-    // krooki.renderer_3.domElement.addEventListener("touchend", function (event) {
-    //   if (tapDelta && ((new Date()).getTime() - tapDelta.getTime()) < 200) {
-    //     var touch = new THREE.Vector2();
-    //     touch.x = (event.touches[0].clientX / krooki.renderer_3.domElement.clientWidth) * 2 - 1;
-    //     touch.y = - (event.touches[0].clientY / krooki.renderer_3.domElement.clientHeight) * 2 + 1;
-    //     raycaste(touch);
-    //   }
-    // }, false);
+      _this.dom.addEventListener("touchend", function (event) {
+        if (tapDelta && ((new Date()).getTime() - tapDelta.getTime()) < 200) {
+          _this.raycaste(getEventLocation(event, _this.dom));
+        }
+      }, false);
+    })(this);
   }
 
   raycaste(loc: THREE.Vector2) {
