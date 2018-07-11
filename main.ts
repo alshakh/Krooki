@@ -3,7 +3,6 @@
 import * as THREE from 'three';
 import { MapControls } from './MapControls'
 import * as TWEEN from '@tweenjs/tween.js'
-import { Quaternion, Vector2, Object3DIdCount } from 'three';
 //threeControls.
 // interface KrookiElement {
 //   object_3: THREE.Object3D,
@@ -128,12 +127,58 @@ import { Quaternion, Vector2, Object3DIdCount } from 'three';
 
 
 
-function getMouseEventLocation(event: MouseEvent, dom: HTMLElement) {
-  return new THREE.Vector2(
-    (event.clientX / dom.clientWidth) * 2 - 1,
-    -((event.clientY / dom.clientHeight) * 2 - 1)
-  )
+function getEventLocation(event: MouseEvent | TouchEvent, dom: HTMLElement) {
+  const domOffset = (function () {
+    const box = dom.getBoundingClientRect();
+    return {
+      top: box.top + window.pageYOffset - document.documentElement.clientTop,
+      left: box.left + window.pageXOffset - document.documentElement.clientLeft
+    };
+  })()
+  console.log('domOffset',domOffset);
+
+  //
+  const locationRelativeToPage = (function () {
+    const eventAny = <any>event;
+    if (eventAny.preventManipulation!) {
+      eventAny.preventManipulation();
+    }
+
+    var norms = (eventAny.changedTouches || eventAny.targetTouches || eventAny.touches || [eventAny])[0];
+
+    var x = 0, y = 0;
+    if (norms.pageX || norms.pageY) {
+      x = norms.pageX;
+      y = norms.pageY;
+    } else if (norms.clientX || norms.clientY) {
+      var docEl = document.documentElement;
+      x = norms.clientX + document.body.scrollLeft + docEl.scrollLeft;
+      y = norms.clientY + document.body.scrollTop + docEl.scrollTop;
+    }
+    return { x: x, y: y };
+  })()
+  console.log('locationRelativeToPage',locationRelativeToPage);
+
+  const locationRelativeToElement = { x: locationRelativeToPage.x - domOffset.left, y: locationRelativeToPage.y - domOffset.top };
+  console.log('locationRelativeToElement',locationRelativeToElement);
+
+  const normalizedLocation = { x: locationRelativeToElement.x / dom.offsetWidth, y: locationRelativeToElement.y / dom.offsetHeight };
+  console.log('normalizedLocation',normalizedLocation);
+
+  const threeViewportLocation = { x: normalizedLocation.x * 2 - 1, y: (-normalizedLocation.y * 2) + 1 };
+  console.log('threeViewportLocation',threeViewportLocation);
+
+  console.log('--------------------------------------');
+  return new THREE.Vector2(threeViewportLocation.x, threeViewportLocation.y);
 }
+
+
+
+
+
+
+
+
 
 
 interface KrookiElementDescriptor {
@@ -339,7 +384,7 @@ class FocusControls {
       }, false);
       _this.dom.addEventListener("mouseup", function (event: MouseEvent) {
         if (clickDelta && ((new Date()).getTime() - clickDelta.getTime()) < 200) {
-          _this.raycaste(getMouseEventLocation(event, _this.dom));
+          _this.raycaste(getEventLocation(event, _this.dom));
         }
       }, false);
     })(this);
@@ -394,9 +439,9 @@ class FocusControls {
         return ret;
       })(this.camera_3);
       // Tween 
-      const tweenDuration = (function(factor) {
+      const tweenDuration = (function (factor) {
         var d = startCameraPos.distanceTo(endCameraPos) * factor;
-        if (d < 500 ) { 
+        if (d < 500) {
           d = 500;
         }
         return d;
@@ -492,7 +537,7 @@ class Krooki {
   public unregisterRenderCall(renderCall: (t: number) => any) {
     this.renderCalls.delete(renderCall);
   }
-  
+
   public renderOnce() {
     this.renderCalls.forEach(function (f) { f(0) });
     this.renderer_3.render(this.scene_3, this.camera_3);

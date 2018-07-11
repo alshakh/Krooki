@@ -49356,8 +49356,43 @@ var TWEEN = __importStar(require("@tweenjs/tween.js"));
 //     pointers.push(new Pointer(x, y,));
 // }
 // return pointers;
-function getMouseEventLocation(event, dom) {
-    return new THREE.Vector2((event.clientX / dom.clientWidth) * 2 - 1, -((event.clientY / dom.clientHeight) * 2 - 1));
+function getEventLocation(event, dom) {
+    var domOffset = (function () {
+        var box = dom.getBoundingClientRect();
+        return {
+            top: box.top + window.pageYOffset - document.documentElement.clientTop,
+            left: box.left + window.pageXOffset - document.documentElement.clientLeft
+        };
+    })();
+    console.log('domOffset', domOffset);
+    //
+    var locationRelativeToPage = (function () {
+        var eventAny = event;
+        if (eventAny.preventManipulation) {
+            eventAny.preventManipulation();
+        }
+        var norms = (eventAny.changedTouches || eventAny.targetTouches || eventAny.touches || [eventAny])[0];
+        var x = 0, y = 0;
+        if (norms.pageX || norms.pageY) {
+            x = norms.pageX;
+            y = norms.pageY;
+        }
+        else if (norms.clientX || norms.clientY) {
+            var docEl = document.documentElement;
+            x = norms.clientX + document.body.scrollLeft + docEl.scrollLeft;
+            y = norms.clientY + document.body.scrollTop + docEl.scrollTop;
+        }
+        return { x: x, y: y };
+    })();
+    console.log('locationRelativeToPage', locationRelativeToPage);
+    var locationRelativeToElement = { x: locationRelativeToPage.x - domOffset.left, y: locationRelativeToPage.y - domOffset.top };
+    console.log('locationRelativeToElement', locationRelativeToElement);
+    var normalizedLocation = { x: locationRelativeToElement.x / dom.offsetWidth, y: locationRelativeToElement.y / dom.offsetHeight };
+    console.log('normalizedLocation', normalizedLocation);
+    var threeViewportLocation = { x: normalizedLocation.x * 2 - 1, y: (-normalizedLocation.y * 2) + 1 };
+    console.log('threeViewportLocation', threeViewportLocation);
+    console.log('--------------------------------------');
+    return new THREE.Vector2(threeViewportLocation.x, threeViewportLocation.y);
 }
 var KrookiElement = /** @class */ (function () {
     function KrookiElement(descriptor, parentKrooki) {
@@ -49520,7 +49555,7 @@ var FocusControls = /** @class */ (function () {
             }, false);
             _this.dom.addEventListener("mouseup", function (event) {
                 if (clickDelta && ((new Date()).getTime() - clickDelta.getTime()) < 200) {
-                    _this.raycaste(getMouseEventLocation(event, _this.dom));
+                    _this.raycaste(getEventLocation(event, _this.dom));
                 }
             }, false);
         })(this);
