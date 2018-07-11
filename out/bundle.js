@@ -49548,53 +49548,44 @@ var FocusControls = /** @class */ (function () {
             }
             //
             var selectedObject = intersects[0];
-            var focuseOn = this.onFocus(selectedObject.object);
-            var cameraCircle = {
-                center: new THREE.Vector3(focuseOn.centroid.x, focuseOn.centroid.y, focuseOn.centroid.z + (focuseOn.bounding.max.z - focuseOn.bounding.min.z) * 2),
-                radius: Math.max(focuseOn.bounding.max.x - focuseOn.bounding.min.x, focuseOn.bounding.max.y - focuseOn.bounding.min.y) * 2,
-                focusCenter: focuseOn.centroid,
-            };
-            var startPosition = new THREE.Vector3().copy(this.camera_3.position);
-            var directionToEndPos = new THREE.Vector3().subVectors(startPosition, cameraCircle.center);
-            directionToEndPos.z = 0;
-            directionToEndPos.normalize();
-            var endPosition = new THREE.Vector3(cameraCircle.center.x, cameraCircle.center.y, cameraCircle.center.z).add(directionToEndPos.multiplyScalar(cameraCircle.radius));
-            var startRotation = new THREE.Quaternion().copy(this.camera_3.quaternion);
-            this.camera_3.position.copy(endPosition);
-            this.camera_3.lookAt(cameraCircle.focusCenter);
-            var endRotation = new THREE.Quaternion().copy(this.camera_3.quaternion);
-            this.camera_3.position.copy(startPosition);
-            this.camera_3.quaternion.copy(startRotation);
+            var focusObjectInfo_1 = this.onFocus(selectedObject.object);
             //
-            var startValues = {
-                px: startPosition.x,
-                py: startPosition.y,
-                pz: startPosition.z,
-                rx: startRotation.x,
-                ry: startRotation.y,
-                rz: startRotation.z,
-                rw: startRotation.w,
-            };
-            var endValues = {
-                px: endPosition.x,
-                py: endPosition.y,
-                pz: endPosition.z,
-                rx: endRotation.x,
-                ry: endRotation.y,
-                rz: endRotation.z,
-                rw: endRotation.w,
-            };
-            var duration = startPosition.distanceTo(endPosition) / 50 * 15000;
-            var _this = this;
-            this.tween = new TWEEN.Tween(startValues);
-            this.tween.to(endValues, duration).easing(TWEEN.Easing.Quadratic.InOut).onUpdate(function (obj) {
-                _this.camera_3.position.set(obj.px, obj.py, obj.pz);
-                /// https://stackoverflow.com/questions/18401213/how-to-animate-the-camera-in-three-js-to-look-at-an-object     
-                _this.camera_3.quaternion.set(obj.rx, obj.ry, obj.rz, obj.rw);
-                _this.onUpdate(_this.camera_3.position, cameraCircle.focusCenter);
-            }).onComplete(function () {
-                _this.tween = null;
-                _this.onComplete(cameraCircle.focusCenter);
+            //
+            var startCameraPos_1 = this.camera_3.position.clone();
+            var endCameraPos_1 = (function () {
+                var endCameraPos = focusObjectInfo_1.centroid.clone();
+                endCameraPos.z += (focusObjectInfo_1.bounding.max.z - focusObjectInfo_1.bounding.min.z) * 2;
+                //
+                var cameraFlatDistance = Math.max(focusObjectInfo_1.bounding.max.x - focusObjectInfo_1.bounding.min.x, focusObjectInfo_1.bounding.max.y - focusObjectInfo_1.bounding.min.y) * 2;
+                var objToCameraDirection = new THREE.Vector3().subVectors(startCameraPos_1, focusObjectInfo_1.centroid).projectOnPlane(new THREE.Vector3(0, 0, 1)).normalize().multiplyScalar(cameraFlatDistance);
+                endCameraPos.add(objToCameraDirection);
+                return endCameraPos;
+            })();
+            var startCameraQuat_1 = this.camera_3.quaternion.clone();
+            var endCameraQuat_1 = (function (cam) {
+                cam.position.copy(endCameraPos_1);
+                cam.lookAt(focusObjectInfo_1.centroid);
+                var ret = cam.quaternion.clone();
+                cam.position.copy(startCameraPos_1);
+                cam.quaternion.copy(startCameraQuat_1);
+                return ret;
+            })(this.camera_3);
+            // Tween 
+            var tweenDuration = startCameraPos_1.distanceTo(endCameraPos_1) * 300;
+            var _this_2 = this;
+            this.tween = new TWEEN.Tween({ x: startCameraPos_1.x, y: startCameraPos_1.y, z: startCameraPos_1.z, t: 0 })
+                .to({ x: endCameraPos_1.x, y: endCameraPos_1.y, z: endCameraPos_1.z, t: 1 }, tweenDuration)
+                .easing(TWEEN.Easing.Quadratic.InOut)
+                .onUpdate(function (v) {
+                _this_2.camera_3.position.set(v.x, v.y, v.z);
+                var qm = new THREE.Quaternion();
+                THREE.Quaternion.slerp(startCameraQuat_1, endCameraQuat_1, qm, v.t);
+                _this_2.camera_3.quaternion.set(qm.x, qm.y, qm.z, qm.w);
+                _this_2.onUpdate(_this_2.camera_3.position, focusObjectInfo_1.centroid);
+            })
+                .onComplete(function () {
+                _this_2.tween = null;
+                _this_2.onComplete(focusObjectInfo_1.centroid);
             }).start();
         }
     };
