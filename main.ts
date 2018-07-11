@@ -371,7 +371,7 @@ class Krooki {
     this.elements = desc.elementDescriptors.map(function (a: KrookiElementDescriptor) { return _this.initElement(a) });
     this.scene_3.add((function (dim: { w: number, h: number }) {
       var geometry = new THREE.PlaneGeometry(dim.w, dim.h);
-      var material = new THREE.MeshBasicMaterial({ color: 0x999999 });
+      var material = new THREE.MeshLambertMaterial({ color: 0x999999 });
       var plane = new THREE.Mesh(geometry, material);
       plane.receiveShadow = true; //default
       return plane;
